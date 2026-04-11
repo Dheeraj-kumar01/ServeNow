@@ -89,13 +89,7 @@ foodListingSchema.index({ location: '2dsphere' });
 foodListingSchema.index({ status: 1, expiryDate: 1 });
 foodListingSchema.index({ donor: 1, createdAt: -1 });
 
-// Auto-expire listings
-foodListingSchema.pre('save', function(next) {
-  const expiryDateTime = new Date(`${this.expiryDate}T${this.expiryTime}`);
-  if (expiryDateTime < new Date()) {
-    this.status = 'expired';
-  }
-  next();
-});
+// REMOVED: The problematic pre-save hook
+// Expiry will be handled in the controller
 
 module.exports = mongoose.model('FoodListing', foodListingSchema);
