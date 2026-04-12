@@ -4,10 +4,8 @@ const {
   getReceiverClaims,
   acceptRequest,
   rejectRequest,
-  generateOTP,
   verifyOTP,
-  resendOTP,
-  completeRequest
+  getSellerOrders
 } = require('../controllers/requestController');
 const { protect, authorize } = require('../middleware/authMiddleware');
 
@@ -16,20 +14,14 @@ const router = express.Router();
 // All routes require authentication
 router.use(protect);
 
-// ============================================
-// DONOR ROUTES
-// ============================================
-router.get('/donor/requests', authorize('donor'), getDonorRequests);
-router.put('/:id/accept', authorize('donor'), acceptRequest);
-router.put('/:id/reject', authorize('donor'), rejectRequest);
-router.post('/:id/generate-otp', authorize('donor'), generateOTP);
-router.post('/:id/resend-otp', authorize('donor'), resendOTP);
+// UPDATED: Accept both 'donor' and 'seller' roles for seller routes
+router.get('/donor/requests', authorize('donor', 'seller'), getDonorRequests);
+router.get('/seller/orders', authorize('donor', 'seller'), getSellerOrders);
+router.put('/:id/accept', authorize('donor', 'seller'), acceptRequest);
+router.put('/:id/reject', authorize('donor', 'seller'), rejectRequest);
 
-// ============================================
-// RECEIVER ROUTES
-// ============================================
-router.get('/receiver/claims', authorize('receiver'), getReceiverClaims);
-router.post('/:id/verify', authorize('receiver'), verifyOTP);
-router.put('/:id/complete', authorize('receiver'), completeRequest);
+// UPDATED: Accept both 'receiver' and 'buyer' roles for buyer routes
+router.get('/receiver/claims', authorize('receiver', 'buyer'), getReceiverClaims);
+router.post('/:id/verify', authorize('receiver', 'buyer'), verifyOTP);
 
 module.exports = router;

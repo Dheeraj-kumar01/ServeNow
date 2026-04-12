@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { addFood } from '../../services/food';
 import { getCurrentLocation, addressToCoordinates } from '../../utils/geolocation';
 import { FOOD_CATEGORIES, DIETARY_TYPES, FOOD_UNITS } from '../../utils/constants';
-import { FaImage, FaMapMarkerAlt, FaUtensils, FaClock, FaUsers, FaTrash, FaSpinner, FaLocationArrow } from 'react-icons/fa';
+import { FaImage, FaMapMarkerAlt, FaUtensils, FaClock, FaUsers, FaTrash, FaSpinner, FaLocationArrow, FaRupeeSign } from 'react-icons/fa';
 import toast from 'react-hot-toast';
 
 const AddFood = () => {
@@ -15,6 +15,7 @@ const AddFood = () => {
     category: '',
     quantity: '',
     unit: 'kg',
+    price: '',  // <-- NEW: Price field
     description: '',
     expiryDate: '',
     expiryTime: '',
@@ -33,18 +34,14 @@ const AddFood = () => {
   const handleImageChange = (e) => {
     const file = e.target.files[0];
     if (file) {
-      // Validate file size (max 5MB)
       if (file.size > 5 * 1024 * 1024) {
         toast.error('Image size should be less than 5MB');
         return;
       }
-      
-      // Validate file type
       if (!file.type.startsWith('image/')) {
         toast.error('Please upload an image file');
         return;
       }
-      
       setFormData({ ...formData, image: file });
       const reader = new FileReader();
       reader.onloadend = () => {
@@ -57,19 +54,14 @@ const AddFood = () => {
   const handleGetLocation = async () => {
     setGettingLocation(true);
     try {
-      // First try to get current position
       const position = await getCurrentLocation();
       const { latitude, longitude } = position.coords;
       
-      console.log('Location captured:', { lat: latitude, lng: longitude });
-      
-      // Update location in form
       setFormData(prev => ({
         ...prev,
         location: { lat: latitude, lng: longitude }
       }));
       
-      // Try to get address from coordinates using reverse geocoding
       try {
         const address = await reverseGeocode(latitude, longitude);
         if (address) {
@@ -77,18 +69,14 @@ const AddFood = () => {
             ...prev,
             pickupAddress: address
           }));
-          toast.success('Location and address captured successfully!');
+          toast.success('Location captured successfully!');
         } else {
           toast.success('Location captured! Please enter your address manually.');
         }
       } catch (addressError) {
-        console.warn('Could not get address from coordinates:', addressError);
         toast.success('Location captured! Please enter your address manually.');
       }
-      
     } catch (error) {
-      console.error('Location error:', error);
-      
       let errorMessage = 'Unable to get location. ';
       if (error.code === 1) {
         errorMessage += 'Please allow location access in your browser settings.';
@@ -99,44 +87,22 @@ const AddFood = () => {
       } else {
         errorMessage += 'Please check your location settings and try again.';
       }
-      
       toast.error(errorMessage);
-      
-      // Offer manual address input
-      toast('You can still enter your address manually', {
-        icon: '📍',
-        duration: 5000
-      });
     } finally {
       setGettingLocation(false);
     }
   };
 
-  // Function to get address from coordinates using OpenStreetMap Nominatim
   const reverseGeocode = async (lat, lng) => {
     try {
       const response = await fetch(
         `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
-        {
-          headers: {
-            'User-Agent': 'FoodDonationApp/1.0'
-          }
-        }
+        { headers: { 'User-Agent': 'FoodDonationApp/1.0' } }
       );
-      
-      if (!response.ok) {
-        throw new Error('Geocoding failed');
-      }
-      
+      if (!response.ok) throw new Error('Geocoding failed');
       const data = await response.json();
-      
-      if (data && data.display_name) {
-        return data.display_name;
-      }
-      
-      return null;
+      return data.display_name || null;
     } catch (error) {
-      console.error('Reverse geocoding error:', error);
       return null;
     }
   };
@@ -147,7 +113,6 @@ const AddFood = () => {
       toast.error('Please enter a valid address (at least 5 characters)');
       return;
     }
-    
     setGettingLocation(true);
     try {
       const coords = await addressToCoordinates(address);
@@ -158,11 +123,10 @@ const AddFood = () => {
         }));
         toast.success('Location found!');
       } else {
-        toast.error('Could not find location for this address. Please be more specific.');
+        toast.error('Could not find location for this address.');
       }
     } catch (error) {
-      console.error('Address lookup error:', error);
-      toast.error('Could not find location. Please check the address or use "Get Location" button.');
+      toast.error('Could not find location. Please check the address.');
     } finally {
       setGettingLocation(false);
     }
@@ -171,9 +135,13 @@ const AddFood = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // Validation
     if (!formData.name || !formData.category || !formData.quantity || !formData.expiryDate || !formData.expiryTime) {
       toast.error('Please fill all required fields');
+      return;
+    }
+
+    if (!formData.price || parseFloat(formData.price) <= 0) {
+      toast.error('Please enter a valid price (₹1 or more)');
       return;
     }
 
@@ -191,8 +159,6 @@ const AddFood = () => {
     
     try {
       const data = new FormData();
-      
-      // Append all form fields
       Object.keys(formData).forEach(key => {
         if (key === 'location') {
           data.append(key, JSON.stringify(formData[key]));
@@ -204,11 +170,10 @@ const AddFood = () => {
       });
 
       await addFood(data);
-      toast.success('Food listed successfully!');
+      toast.success('Product listed successfully!');
       navigate('/donor/listings');
     } catch (error) {
-      console.error('Add food error:', error);
-      toast.error(error.response?.data?.message || 'Failed to add food. Please try again.');
+      toast.error(error.response?.data?.message || 'Failed to list product');
     } finally {
       setLoading(false);
     }
@@ -219,22 +184,20 @@ const AddFood = () => {
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="bg-white rounded-xl shadow-lg overflow-hidden">
           <div className="bg-gradient-to-r from-green-500 to-green-600 px-6 py-4">
-            <h1 className="text-2xl font-bold text-white">Add New Food Donation</h1>
-            <p className="text-green-100 mt-1">Share food and make a difference</p>
+            <h1 className="text-2xl font-bold text-white">List New Product</h1>
+            <p className="text-green-100 mt-1">Sell your surplus food items</p>
           </div>
 
           <form onSubmit={handleSubmit} className="p-6 space-y-6">
-            {/* Food Name */}
+            {/* Product Name */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Food Name *
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Product Name *</label>
               <input
                 type="text"
                 name="name"
                 value={formData.name}
                 onChange={handleChange}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
                 placeholder="e.g., Biryani, Pizza, Sandwiches"
                 required
               />
@@ -243,14 +206,12 @@ const AddFood = () => {
             {/* Category and Dietary Type */}
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Category *
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Category *</label>
                 <select
                   name="category"
                   value={formData.category}
                   onChange={handleChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg"
                   required
                 >
                   <option value="">Select category</option>
@@ -259,11 +220,8 @@ const AddFood = () => {
                   ))}
                 </select>
               </div>
-
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Dietary Type *
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Dietary Type *</label>
                 <div className="flex gap-4">
                   {DIETARY_TYPES.map(type => (
                     <label key={type.value} className="flex items-center">
@@ -282,12 +240,10 @@ const AddFood = () => {
               </div>
             </div>
 
-            {/* Quantity */}
+            {/* Quantity and Price */}
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Quantity *
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Quantity *</label>
                 <input
                   type="number"
                   name="quantity"
@@ -301,9 +257,7 @@ const AddFood = () => {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Unit
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Unit</label>
                 <select
                   name="unit"
                   value={formData.unit}
@@ -317,12 +271,36 @@ const AddFood = () => {
               </div>
             </div>
 
+            {/* Price Field - NEW */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Price (₹) * <span className="text-xs text-gray-500">(Platform commission: 20%)</span>
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <FaRupeeSign className="text-gray-400" />
+                </div>
+                <input
+                  type="number"
+                  name="price"
+                  value={formData.price}
+                  onChange={handleChange}
+                  className="w-full pl-8 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                  placeholder="Enter price"
+                  step="1"
+                  min="1"
+                  required
+                />
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                You will receive 80% (₹{(parseFloat(formData.price) * 0.8).toFixed(2) || '0'}) after successful delivery
+              </p>
+            </div>
+
             {/* Expiry Date & Time */}
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Expiry Date *
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Expiry Date *</label>
                 <input
                   type="date"
                   name="expiryDate"
@@ -334,9 +312,7 @@ const AddFood = () => {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Expiry Time *
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Expiry Time *</label>
                 <input
                   type="time"
                   name="expiryTime"
@@ -350,26 +326,21 @@ const AddFood = () => {
 
             {/* Description */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Description
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
               <textarea
                 name="description"
                 value={formData.description}
                 onChange={handleChange}
                 rows="3"
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg"
-                placeholder="Describe the food, ingredients, preparation time, etc."
+                placeholder="Describe your product, ingredients, etc."
               />
             </div>
 
             {/* Location Section */}
             <div className="border rounded-lg p-4 bg-gray-50">
-              <label className="block text-sm font-medium text-gray-700 mb-3">
-                Pickup Location *
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-3">Pickup Location *</label>
               
-              {/* Address Input with Search */}
               <div className="flex gap-2 mb-3">
                 <input
                   type="text"
@@ -391,7 +362,6 @@ const AddFood = () => {
                 </button>
               </div>
               
-              {/* Get Current Location Button */}
               <button
                 type="button"
                 onClick={handleGetLocation}
@@ -411,14 +381,10 @@ const AddFood = () => {
                 )}
               </button>
               
-              {/* Location Status */}
               {formData.location.lat && (
                 <div className="mt-3 p-2 bg-green-50 border border-green-200 rounded-lg">
-                  <p className="text-xs text-green-700 flex items-center gap-1">
-                    ✓ Location captured
-                    <span className="text-gray-500 ml-2">
-                      ({formData.location.lat.toFixed(6)}, {formData.location.lng.toFixed(6)})
-                    </span>
+                  <p className="text-xs text-green-700">
+                    ✓ Location captured ({formData.location.lat.toFixed(6)}, {formData.location.lng.toFixed(6)})
                   </p>
                 </div>
               )}
@@ -434,27 +400,18 @@ const AddFood = () => {
                   onChange={(e) => setFormData({ ...formData, isUrgent: e.target.checked })}
                   className="mr-2"
                 />
-                <span className="text-sm font-medium text-gray-700">
-                  Mark as Urgent (Food will expire soon)
-                </span>
+                <span className="text-sm font-medium text-gray-700">Mark as Urgent (Product will expire soon)</span>
               </label>
             </div>
 
             {/* Image Upload */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Food Image
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Product Image</label>
               <div className="flex items-center gap-4">
                 <label className="cursor-pointer bg-gray-100 hover:bg-gray-200 px-4 py-2 rounded-lg flex items-center gap-2 transition-colors">
                   <FaImage />
                   <span>Upload Image</span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageChange}
-                    className="hidden"
-                  />
+                  <input type="file" accept="image/*" onChange={handleImageChange} className="hidden" />
                 </label>
                 {imagePreview && (
                   <div className="relative">
@@ -472,7 +429,6 @@ const AddFood = () => {
                   </div>
                 )}
               </div>
-              <p className="text-xs text-gray-500 mt-1">Max size: 5MB. Supported: JPG, PNG, GIF</p>
             </div>
 
             {/* Submit Buttons */}
@@ -480,23 +436,17 @@ const AddFood = () => {
               <button
                 type="button"
                 onClick={() => navigate('/donor/dashboard')}
-                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={loading}
-                className="flex-1 px-4 py-2 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg hover:from-green-600 hover:to-green-700 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+                className="flex-1 px-4 py-2 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg hover:from-green-600 hover:to-green-700 disabled:opacity-50 flex items-center justify-center gap-2"
               >
-                {loading ? (
-                  <>
-                    <FaSpinner className="animate-spin" />
-                    Adding Food...
-                  </>
-                ) : (
-                  'Add Food Donation'
-                )}
+                {loading ? <FaSpinner className="animate-spin" /> : <FaRupeeSign />}
+                {loading ? 'Listing Product...' : 'List Product'}
               </button>
             </div>
           </form>

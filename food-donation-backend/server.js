@@ -19,7 +19,7 @@ app.use(express.urlencoded({ extended: true }));
 
 // Enable CORS
 app.use(cors({
-  origin: ['http://localhost:3000', 'http://localhost:5173', 'http://127.0.0.1:3000'],
+  origin: ['http://localhost:3000', 'http://localhost:3001', 'http://127.0.0.1:3000', 'http://127.0.0.1:3001'],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
@@ -46,15 +46,17 @@ app.use((req, res, next) => {
 const authRoutes = require('./routes/authRoutes');
 const foodRoutes = require('./routes/foodRoutes');
 const requestRoutes = require('./routes/requestRoutes');
-const chatRoutes = require('./routes/chatRoutes'); // <-- ADD THIS
+const chatRoutes = require('./routes/chatRoutes');
 const donorRoutes = require('./routes/donorRoutes');
+const paymentRoutes = require('./routes/paymentRoutes'); // <-- ADD THIS IMPORT
 
 // Mount routers
 app.use('/api/auth', authRoutes);
 app.use('/api/food', foodRoutes);
 app.use('/api/requests', requestRoutes);
-app.use('/api/chat', chatRoutes); // <-- ADD THIS
+app.use('/api/chat', chatRoutes);
 app.use('/api/donor', donorRoutes);
+app.use('/api/payments', paymentRoutes); // <-- ADD THIS
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
@@ -96,7 +98,3 @@ process.on('unhandledRejection', (err, promise) => {
   console.log(`❌ Error: ${err.message}`);
   server.close(() => process.exit(1));
 });
-
-if (process.env.NODE_ENV === 'production') {
-  module.exports = app;
-}

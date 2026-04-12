@@ -1,7 +1,7 @@
 import api from './api';
 
 // ============================================
-// FOOD ITEM CRUD OPERATIONS
+// PRODUCT CRUD OPERATIONS
 // ============================================
 
 export const addFood = async (formData) => {
@@ -12,8 +12,19 @@ export const addFood = async (formData) => {
 };
 
 export const getDonorFoodListings = async () => {
-  const response = await api.get('/food/mine');
-  return response.data;
+  try {
+    const response = await api.get('/food/mine');
+    if (response.data && response.data.products && Array.isArray(response.data.products)) {
+      return response.data.products;
+    }
+    if (Array.isArray(response.data)) {
+      return response.data;
+    }
+    return [];
+  } catch (error) {
+    console.error('Error fetching products:', error);
+    return [];
+  }
 };
 
 export const getFoodById = async (foodId) => {
@@ -34,7 +45,7 @@ export const deleteFood = async (foodId) => {
 };
 
 // ============================================
-// NEARBY FOOD SEARCH
+// NEARBY PRODUCT SEARCH
 // ============================================
 
 export const getNearbyFood = async (lat, lng, radius = 10) => {
@@ -50,7 +61,7 @@ export const searchFood = async (searchParams) => {
 };
 
 // ============================================
-// CLAIM OPERATIONS
+// ORDER OPERATIONS
 // ============================================
 
 export const claimFood = async (foodId) => {
@@ -73,17 +84,8 @@ export const rejectClaimRequest = async (claimId) => {
   return response.data;
 };
 
-// ============================================
-// OTP OPERATIONS
-// ============================================
-
 export const generateClaimOTP = async (claimId) => {
   const response = await api.post(`/requests/${claimId}/generate-otp`);
-  return response.data;
-};
-
-export const resendOTP = async (claimId) => {
-  const response = await api.post(`/requests/${claimId}/resend-otp`);
   return response.data;
 };
 
@@ -92,33 +94,82 @@ export const verifyClaimOTP = async (claimId, otp) => {
   return response.data;
 };
 
-export const updateClaimStatus = async (claimId, status) => {
-  const response = await api.put(`/requests/${claimId}/status`, { status });
+export const getSellerOrders = async () => {
+  try {
+    const response = await api.get('/requests/seller/orders');
+    return response.data;
+  } catch (error) {
+    return { orders: [], stats: {} };
+  }
+};
+
+// ============================================
+// PAYMENT OPERATIONS
+// ============================================
+
+// Create Razorpay order
+export const createRazorpayOrder = async (requestId) => {
+  const response = await api.post('/payments/create-order', { requestId });
   return response.data;
 };
 
-export const completeClaim = async (claimId) => {
-  const response = await api.put(`/requests/${claimId}/complete`);
+// Verify payment
+export const verifyPayment = async (paymentData) => {
+  const response = await api.post('/payments/verify', paymentData);
+  return response.data;
+};
+
+// Get payment status
+export const getPaymentStatus = async (requestId) => {
+  const response = await api.get(`/payments/status/${requestId}`);
   return response.data;
 };
 
 // ============================================
-// DONOR SPECIFIC OPERATIONS
+// SELLER STATS
 // ============================================
+
+export const getSellerStats = async () => {
+  try {
+    const response = await api.get('/donor/stats');
+    return response.data;
+  } catch (error) {
+    return {
+      totalProducts: 0,
+      totalOrders: 0,
+      totalRevenue: 0,
+      totalCommission: 0,
+      pendingOrders: 0,
+      completedOrders: 0
+    };
+  }
+};
 
 export const getDonorStats = async () => {
-  const response = await api.get('/donor/stats');
-  return response.data;
+  try {
+    const response = await api.get('/donor/stats');
+    return response.data;
+  } catch (error) {
+    return { totalDonations: 0, activeListings: 0, completedDonations: 0, totalBeneficiaries: 0 };
+  }
 };
 
 export const getDonorRecentClaims = async () => {
-  const response = await api.get('/donor/claims/recent');
-  return response.data;
+  try {
+    const response = await api.get('/donor/claims/recent');
+    return response.data;
+  } catch (error) {
+    return [];
+  }
 };
 
 export const getDonorAllClaims = async () => {
-  const response = await api.get('/donor/claims');
-  return response.data;
+  try {
+    const response = await api.get('/donor/claims');
+    return response.data;
+  } catch (error) {
+    return { claims: [], total: 0, page: 1, pages: 0 };
+  }
 };
 
 export const getDonorFoodItems = async () => {
@@ -127,22 +178,34 @@ export const getDonorFoodItems = async () => {
 };
 
 // ============================================
-// RECEIVER SPECIFIC OPERATIONS
+// BUYER STATS
 // ============================================
 
 export const getReceiverStats = async () => {
-  const response = await api.get('/receiver/stats');
-  return response.data;
+  try {
+    const response = await api.get('/receiver/stats');
+    return response.data;
+  } catch (error) {
+    return { totalClaims: 0, completedClaims: 0, pendingClaims: 0, totalQuantity: 0 };
+  }
 };
 
 export const getReceiverClaims = async () => {
-  const response = await api.get('/requests/receiver/claims');
-  return response.data;
+  try {
+    const response = await api.get('/requests/receiver/claims');
+    return response.data;
+  } catch (error) {
+    return [];
+  }
 };
 
 export const getReceiverActiveClaims = async () => {
-  const response = await api.get('/receiver/claims/active');
-  return response.data;
+  try {
+    const response = await api.get('/receiver/claims/active');
+    return response.data;
+  } catch (error) {
+    return [];
+  }
 };
 
 // ============================================
@@ -150,20 +213,30 @@ export const getReceiverActiveClaims = async () => {
 // ============================================
 
 export const getImpactMetrics = async () => {
-  const response = await api.get('/impact/metrics');
-  return response.data;
+  try {
+    const response = await api.get('/impact/metrics');
+    return response.data;
+  } catch (error) {
+    return { foodSaved: 0, co2Reduced: 0, mealsProvided: 0, waterSaved: 0 };
+  }
 };
 
 export const getUserImpact = async () => {
-  const response = await api.get('/impact/user');
-  return response.data;
+  try {
+    const response = await api.get('/impact/user');
+    return response.data;
+  } catch (error) {
+    return { totalDonations: 0, totalClaims: 0, foodSaved: 0, co2Reduced: 0 };
+  }
 };
 
-export const getLeaderboard = async (type = 'donor', limit = 10) => {
-  const response = await api.get('/impact/leaderboard', {
-    params: { type, limit }
-  });
-  return response.data;
+export const getLeaderboard = async (type = 'seller', limit = 10) => {
+  try {
+    const response = await api.get('/impact/leaderboard', { params: { type, limit } });
+    return response.data;
+  } catch (error) {
+    return [];
+  }
 };
 
 // ============================================
@@ -171,8 +244,12 @@ export const getLeaderboard = async (type = 'donor', limit = 10) => {
 // ============================================
 
 export const getNotifications = async () => {
-  const response = await api.get('/notifications');
-  return response.data;
+  try {
+    const response = await api.get('/notifications');
+    return response.data;
+  } catch (error) {
+    return [];
+  }
 };
 
 export const markNotificationRead = async (notificationId) => {
@@ -205,7 +282,6 @@ export const getUserRatings = async (userId) => {
 
 export const formatFoodData = (foodData) => {
   const formData = new FormData();
-  
   Object.keys(foodData).forEach(key => {
     if (key === 'location' && foodData[key]) {
       formData.append(key, JSON.stringify(foodData[key]));
@@ -215,7 +291,6 @@ export const formatFoodData = (foodData) => {
       formData.append(key, foodData[key]);
     }
   });
-  
   return formData;
 };
 
@@ -223,8 +298,7 @@ export const calculateDistance = (lat1, lon1, lat2, lon2) => {
   const R = 6371;
   const dLat = (lat2 - lat1) * Math.PI / 180;
   const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a = 
-    Math.sin(dLat/2) * Math.sin(dLat/2) +
+  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
     Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
     Math.sin(dLon/2) * Math.sin(dLon/2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
@@ -255,10 +329,9 @@ export default {
   acceptClaimRequest,
   rejectClaimRequest,
   generateClaimOTP,
-  resendOTP,
   verifyClaimOTP,
-  updateClaimStatus,
-  completeClaim,
+  getSellerStats,
+  getSellerOrders,
   getDonorStats,
   getDonorRecentClaims,
   getDonorAllClaims,
@@ -266,6 +339,9 @@ export default {
   getReceiverStats,
   getReceiverClaims,
   getReceiverActiveClaims,
+  createRazorpayOrder,
+  verifyPayment,
+  getPaymentStatus,
   getImpactMetrics,
   getUserImpact,
   getLeaderboard,

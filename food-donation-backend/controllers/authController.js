@@ -1,5 +1,12 @@
 const User = require('../models/User');
-const generateToken = require('../utils/generateToken');
+const jwt = require('jsonwebtoken');
+
+// Generate JWT Token
+const generateToken = (id) => {
+  return jwt.sign({ id }, process.env.JWT_SECRET, {
+    expiresIn: process.env.JWT_EXPIRE || '7d'
+  });
+};
 
 // @desc    Register user
 // @route   POST /api/auth/register
@@ -35,17 +42,31 @@ const registerUser = async (req, res) => {
       return res.status(400).json({ message: 'Please enter a valid 10-digit phone number' });
     }
 
+    // Map role for backward compatibility (keep original role for frontend)
+    // Store in database as seller/buyer, but respond with donor/receiver for frontend
+    let dbRole = role;
+    let responseRole = role;
+    
+    if (role === 'donor') {
+      dbRole = 'seller';
+      responseRole = 'donor';
+    } else if (role === 'receiver') {
+      dbRole = 'buyer';
+      responseRole = 'receiver';
+    } else {
+      dbRole = role;
+      responseRole = role;
+    }
+
     // Handle location
     let locationData = {
       type: 'Point',
       coordinates: [77.2090, 28.6139] // Default Delhi coordinates
     };
 
-    if (location) {
-      if (location.lng && location.lat) {
-        locationData.coordinates = [parseFloat(location.lng), parseFloat(location.lat)];
-        console.log('Using provided location:', locationData.coordinates);
-      }
+    if (location && location.lng && location.lat) {
+      locationData.coordinates = [parseFloat(location.lng), parseFloat(location.lat)];
+      console.log('Using provided location:', locationData.coordinates);
     }
 
     // Create user
@@ -53,7 +74,7 @@ const registerUser = async (req, res) => {
       name,
       email,
       password,
-      role: role || 'receiver',
+      role: dbRole,
       phone,
       address,
       location: locationData
@@ -65,7 +86,7 @@ const registerUser = async (req, res) => {
         _id: user._id,
         name: user.name,
         email: user.email,
-        role: user.role,
+        role: responseRole, // Send original role to frontend
         phone: user.phone,
         address: user.address,
         token: token
@@ -79,7 +100,7 @@ const registerUser = async (req, res) => {
     
     res.status(500).json({ 
       message: 'Server error', 
-      error: error.message
+      error: error.message 
     });
   }
 };
@@ -99,11 +120,17 @@ const loginUser = async (req, res) => {
 
     if (user && (await user.matchPassword(password))) {
       const token = generateToken(user._id);
+      
+      // Map role for frontend compatibility
+      let frontendRole = user.role;
+      if (user.role === 'seller') frontendRole = 'donor';
+      if (user.role === 'buyer') frontendRole = 'receiver';
+      
       res.json({
         _id: user._id,
         name: user.name,
         email: user.email,
-        role: user.role,
+        role: frontendRole,
         phone: user.phone,
         address: user.address,
         token: token
@@ -126,7 +153,16 @@ const getMe = async (req, res) => {
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
-    res.json(user);
+    
+    // Map role for frontend compatibility
+    let frontendRole = user.role;
+    if (user.role === 'seller') frontendRole = 'donor';
+    if (user.role === 'buyer') frontendRole = 'receiver';
+    
+    const userData = user.toObject();
+    userData.role = frontendRole;
+    
+    res.json(userData);
   } catch (error) {
     console.error('Get me error:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -142,7 +178,16 @@ const verifyUser = async (req, res) => {
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
-    res.json(user);
+    
+    // Map role for frontend compatibility
+    let frontendRole = user.role;
+    if (user.role === 'seller') frontendRole = 'donor';
+    if (user.role === 'buyer') frontendRole = 'receiver';
+    
+    const userData = user.toObject();
+    userData.role = frontendRole;
+    
+    res.json(userData);
   } catch (error) {
     console.error('Verify user error:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -183,11 +228,16 @@ const updateProfile = async (req, res) => {
 
     const updatedUser = await user.save();
 
+    // Map role for frontend compatibility
+    let frontendRole = updatedUser.role;
+    if (updatedUser.role === 'seller') frontendRole = 'donor';
+    if (updatedUser.role === 'buyer') frontendRole = 'receiver';
+
     res.json({
       _id: updatedUser._id,
       name: updatedUser.name,
       email: updatedUser.email,
-      role: updatedUser.role,
+      role: frontendRole,
       phone: updatedUser.phone,
       address: updatedUser.address,
       token: generateToken(updatedUser._id)
@@ -203,5 +253,5 @@ module.exports = {
   loginUser, 
   getMe, 
   updateProfile,
-  verifyUser  // Export verifyUser
+  verifyUser
 };

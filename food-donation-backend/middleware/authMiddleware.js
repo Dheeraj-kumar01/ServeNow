@@ -32,13 +32,33 @@ const protect = async (req, res, next) => {
   }
 };
 
+// UPDATED: Accept both old and new role names
 const authorize = (...roles) => {
   return (req, res, next) => {
     if (!req.user) {
       return res.status(401).json({ message: 'Not authenticated' });
     }
     
-    if (!roles.includes(req.user.role)) {
+    // Map roles for backward compatibility
+    const userRole = req.user.role;
+    let hasAccess = false;
+    
+    for (const role of roles) {
+      if (role === 'donor' && (userRole === 'donor' || userRole === 'seller')) {
+        hasAccess = true;
+        break;
+      }
+      if (role === 'receiver' && (userRole === 'receiver' || userRole === 'buyer')) {
+        hasAccess = true;
+        break;
+      }
+      if (role === userRole) {
+        hasAccess = true;
+        break;
+      }
+    }
+    
+    if (!hasAccess) {
       return res.status(403).json({
         message: `User role ${req.user.role} is not authorized to access this route`
       });

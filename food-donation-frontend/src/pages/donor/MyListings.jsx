@@ -17,15 +17,13 @@ import {
   FaUtensils,
   FaUser,
   FaPhone,
-  FaImage
+  FaRupeeSign
 } from 'react-icons/fa';
 import toast from 'react-hot-toast';
 
-// Get backend URL from environment or use default
+// Get backend URL
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 const BACKEND_URL = API_URL.replace('/api', '');
-
-// Local placeholder image (using data URI for reliability)
 const DEFAULT_IMAGE = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"%3E%3Crect width="200" height="200" fill="%23f3f4f6"/%3E%3Ccircle cx="100" cy="100" r="60" fill="%23e5e7eb"/%3E%3Cpath d="M70 80 L130 80 L120 130 L80 130 Z" fill="%239ca3af"/%3E%3Ccircle cx="100" cy="95" r="12" fill="%23d1d5db"/%3E%3Cpath d="M95 95 L105 95 L100 105 Z" fill="%239ca3af"/%3E%3Ctext x="100" y="170" text-anchor="middle" fill="%236b7280" font-size="14"%3ENo Image%3C/text%3E%3C/svg%3E';
 
 const MyListings = () => {
@@ -41,10 +39,27 @@ const MyListings = () => {
   const fetchListings = async () => {
     try {
       const data = await getDonorFoodListings();
-      setListings(data);
+      console.log('Fetched listings data:', data);
+      
+      // Handle different response formats
+      let listingsArray = [];
+      if (Array.isArray(data)) {
+        listingsArray = data;
+      } else if (data && data.products && Array.isArray(data.products)) {
+        listingsArray = data.products;
+      } else if (data && data.listings && Array.isArray(data.listings)) {
+        listingsArray = data.listings;
+      } else if (data && data.data && Array.isArray(data.data)) {
+        listingsArray = data.data;
+      } else {
+        listingsArray = [];
+      }
+      
+      setListings(listingsArray);
     } catch (error) {
       console.error('Error fetching listings:', error);
       toast.error('Failed to load listings');
+      setListings([]);
     } finally {
       setLoading(false);
     }
@@ -56,8 +71,8 @@ const MyListings = () => {
       await acceptClaimRequest(claimId);
       const response = await generateClaimOTP(claimId);
       const otp = response.otp || response;
-      toast.success(`Claim accepted! Share OTP: ${otp} with the receiver`);
-      fetchListings(); // Refresh to update status
+      toast.success(`Claim accepted! Share OTP: ${otp} with the buyer`);
+      fetchListings();
     } catch (error) {
       console.error('Error accepting claim:', error);
       toast.error(error.response?.data?.message || 'Failed to accept claim');
@@ -73,7 +88,7 @@ const MyListings = () => {
     try {
       await rejectClaimRequest(claimId);
       toast.success('Claim rejected');
-      fetchListings(); // Refresh to update status
+      fetchListings();
     } catch (error) {
       console.error('Error rejecting claim:', error);
       toast.error(error.response?.data?.message || 'Failed to reject claim');
@@ -121,7 +136,6 @@ const MyListings = () => {
     if (imagePath.startsWith('http')) {
       return imagePath;
     }
-    // Remove /api from the URL for static files
     return `${BACKEND_URL}${imagePath}`;
   };
 
@@ -139,17 +153,16 @@ const MyListings = () => {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <h1 className="text-3xl font-bold text-gray-900 mb-8">My Food Listings</h1>
+      <h1 className="text-3xl font-bold text-gray-900 mb-8">My Products</h1>
       
       {listings.length === 0 ? (
         <div className="text-center py-12 bg-white rounded-lg shadow">
-          <FaImage className="text-6xl text-gray-300 mx-auto mb-4" />
-          <p className="text-gray-500 text-lg">No food listings yet</p>
+          <p className="text-gray-500 text-lg">No products listed yet</p>
           <button
             onClick={() => window.location.href = '/donor/add-food'}
             className="mt-4 bg-gradient-to-r from-green-500 to-green-600 text-white px-6 py-2 rounded-lg hover:from-green-600 hover:to-green-700 transition-all"
           >
-            Add Your First Food
+            Add Your First Product
           </button>
         </div>
       ) : (
@@ -179,8 +192,8 @@ const MyListings = () => {
                         Added on {new Date(listing.createdAt).toLocaleDateString()}
                       </p>
                     </div>
-                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(listing.status)}`}>
-                      {listing.status?.toUpperCase() || 'AVAILABLE'}
+                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(listing.orderStatus || listing.status)}`}>
+                      {((listing.orderStatus || listing.status)?.toUpperCase() || 'AVAILABLE')}
                     </span>
                   </div>
                   
@@ -189,6 +202,11 @@ const MyListings = () => {
                       <FaUtensils className="text-gray-400 mr-2" />
                       <span className="text-gray-500">Quantity:</span>
                       <span className="ml-2 font-medium">{listing.quantity} {listing.unit}</span>
+                    </div>
+                    <div className="flex items-center">
+                      <FaRupeeSign className="text-gray-400 mr-2" />
+                      <span className="text-gray-500">Price:</span>
+                      <span className="ml-2 font-medium text-green-600">₹{listing.price}</span>
                     </div>
                     <div className="flex items-center">
                       <FaClock className="text-gray-400 mr-2" />
@@ -207,7 +225,7 @@ const MyListings = () => {
                   {/* Claims Section */}
                   {listing.claims && listing.claims.length > 0 && (
                     <div className="mt-6 border-t pt-4">
-                      <h4 className="font-semibold text-gray-900 mb-3">Claims Received ({listing.claims.length})</h4>
+                      <h4 className="font-semibold text-gray-900 mb-3">Orders Received ({listing.claims.length})</h4>
                       <div className="space-y-3">
                         {listing.claims.map(claim => (
                           <div key={claim._id} className="bg-gray-50 rounded-lg p-4">
@@ -215,7 +233,7 @@ const MyListings = () => {
                               <div className="flex-1">
                                 <div className="flex items-center gap-2">
                                   <FaUser className="text-gray-400" />
-                                  <p className="font-medium text-gray-900">{claim.receiver?.name || 'Receiver'}</p>
+                                  <p className="font-medium text-gray-900">{claim.receiver?.name || 'Buyer'}</p>
                                 </div>
                                 {claim.receiver?.phone && (
                                   <div className="flex items-center gap-2 mt-1">
@@ -224,7 +242,10 @@ const MyListings = () => {
                                   </div>
                                 )}
                                 <p className="text-sm text-gray-600 mt-2">
-                                  Claimed on: {new Date(claim.createdAt).toLocaleString()}
+                                  Ordered on: {new Date(claim.createdAt).toLocaleString()}
+                                </p>
+                                <p className="text-sm text-gray-600">
+                                  Amount: <span className="font-semibold text-green-600">₹{claim.amount || listing.price}</span>
                                 </p>
                                 {claim.message && (
                                   <p className="text-sm text-gray-500 mt-2 italic">
@@ -264,7 +285,7 @@ const MyListings = () => {
                                         {claim.otp || 'OTP Generated'}
                                       </span>
                                       <span className="text-xs text-gray-500">
-                                        Share with receiver
+                                        Share with buyer
                                       </span>
                                     </div>
                                   )}
@@ -285,7 +306,7 @@ const MyListings = () => {
                                   <span className="font-mono font-bold text-lg tracking-wider">{claim.otp}</span>
                                 </p>
                                 <p className="text-xs text-blue-600 mt-1">
-                                  Share this OTP with the receiver for pickup verification
+                                  Share this OTP with the buyer for pickup verification
                                 </p>
                               </div>
                             )}

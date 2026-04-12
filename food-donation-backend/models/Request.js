@@ -16,18 +16,45 @@ const requestSchema = new mongoose.Schema({
     ref: 'User',
     required: true
   },
+  // NEW FIELDS: Payment details
+  amount: {
+    type: Number,
+    required: true
+  },
+  commission: {
+    type: Number,
+    required: true
+  },
+  sellerEarning: {
+    type: Number,
+    required: true
+  },
+  paymentStatus: {
+    type: String,
+    enum: ['pending', 'completed', 'failed', 'refunded'],
+    default: 'pending'
+  },
+  // NEW FIELDS: Razorpay integration
+  razorpayOrderId: {
+    type: String
+  },
+  razorpayPaymentId: {
+    type: String
+  },
+  razorpaySignature: {
+    type: String
+  },
+  // Existing fields
   status: {
     type: String,
     enum: ['pending', 'accepted', 'rejected', 'completed', 'cancelled'],
     default: 'pending'
   },
   otp: {
-    type: String,
-    default: null  // Make sure OTP can be stored
+    type: String
   },
   otpExpiry: {
-    type: Date,
-    default: null  // Make sure expiry can be stored
+    type: Date
   },
   message: {
     type: String,
@@ -50,9 +77,9 @@ const requestSchema = new mongoose.Schema({
 });
 
 // Create indexes
-requestSchema.index({ food: 1, receiver: 1 }, { unique: true });
+requestSchema.index({ food: 1, receiver: 1 });
 requestSchema.index({ donor: 1, status: 1 });
 requestSchema.index({ receiver: 1, status: 1 });
-requestSchema.index({ createdAt: -1 });
+requestSchema.index({ razorpayOrderId: 1 });
 
 module.exports = mongoose.model('Request', requestSchema);

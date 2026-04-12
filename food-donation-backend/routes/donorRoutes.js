@@ -8,12 +8,12 @@ const { protect, authorize } = require('../middleware/authMiddleware');
 
 const router = express.Router();
 
-// All routes require authentication and donor role
+// All routes require authentication
 router.use(protect);
-router.use(authorize('donor'));
 
-router.get('/stats', getDonorStats);
-router.get('/claims/recent', getDonorRecentClaims);
-router.get('/claims', getDonorAllClaims);
+// UPDATED: Accept both 'donor' and 'seller' roles
+router.get('/stats', authorize('donor', 'seller'), getDonorStats);
+router.get('/claims/recent', authorize('donor', 'seller'), getDonorRecentClaims);
+router.get('/claims', authorize('donor', 'seller'), getDonorAllClaims);
 
 module.exports = router;

@@ -21,7 +21,6 @@ const Signup = () => {
   const { location, loading: locationLoading, error: locationError, retry: retryLocation } = useGeolocation();
   const navigate = useNavigate();
 
-  // Handle location availability
   useEffect(() => {
     if (location) {
       console.log('Location captured:', location);
@@ -35,25 +34,21 @@ const Signup = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // Validate passwords match
     if (formData.password !== formData.confirmPassword) {
       toast.error('Passwords do not match');
       return;
     }
     
-    // Validate password length
     if (formData.password.length < 6) {
       toast.error('Password must be at least 6 characters');
       return;
     }
     
-    // Validate phone number
     if (!/^[0-9]{10}$/.test(formData.phone)) {
       toast.error('Please enter a valid 10-digit phone number');
       return;
     }
     
-    // Validate address
     if (!formData.address.trim()) {
       toast.error('Please enter your address');
       return;
@@ -62,7 +57,6 @@ const Signup = () => {
     setLoading(true);
     
     try {
-      // Prepare location data for backend
       let locationData = null;
       
       if (location && location.lat && location.lng) {
@@ -71,12 +65,8 @@ const Signup = () => {
           lng: location.lng
         };
         console.log('Sending location to backend:', locationData);
-      } else {
-        console.warn('No location available, using default');
-        locationData = null;
       }
       
-      // Prepare user data for registration
       const userData = {
         name: formData.name,
         email: formData.email,
@@ -94,11 +84,9 @@ const Signup = () => {
       
       const result = await signup(userData);
       
-      // Check if signup was successful
       if (result && result.success) {
         toast.success('Account created successfully!');
         
-        // Redirect based on role
         if (result.user && result.user.role === 'donor') {
           navigate('/donor/dashboard');
         } else if (result.user && result.user.role === 'receiver') {
@@ -107,7 +95,6 @@ const Signup = () => {
           navigate('/');
         }
       } else {
-        // Handle signup failure
         toast.error(result?.message || 'Registration failed. Please try again.');
       }
     } catch (error) {
@@ -318,7 +305,7 @@ const Signup = () => {
                   }`}
                 >
                   <FaStore className={`text-2xl ${formData.role === 'donor' ? 'text-green-600' : 'text-gray-400'}`} />
-                  <span className="mt-2 text-sm font-medium">Donor</span>
+                  <span className="mt-2 text-sm font-medium">Seller</span>
                   <span className="text-xs text-gray-500">Restaurant/Individual</span>
                 </button>
                 
@@ -332,8 +319,8 @@ const Signup = () => {
                   }`}
                 >
                   <FaHandHoldingHeart className={`text-2xl ${formData.role === 'receiver' ? 'text-green-600' : 'text-gray-400'}`} />
-                  <span className="mt-2 text-sm font-medium">Receiver</span>
-                  <span className="text-xs text-gray-500">NGO/Orphanage</span>
+                  <span className="mt-2 text-sm font-medium">Buyer</span>
+                  <span className="text-xs text-gray-500">NGO/Orphanage/Individual</span>
                 </button>
               </div>
             </div>

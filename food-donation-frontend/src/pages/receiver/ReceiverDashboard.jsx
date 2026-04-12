@@ -13,7 +13,7 @@ const ReceiverDashboard = () => {
   const [filteredItems, setFilteredItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [viewMode, setViewMode] = useState('list'); // 'list' or 'map'
+  const [viewMode, setViewMode] = useState('list');
   const [userLocation, setUserLocation] = useState(null);
   const [locationError, setLocationError] = useState(null);
   const [locationLoading, setLocationLoading] = useState(true);
@@ -72,9 +72,9 @@ const ReceiverDashboard = () => {
       setLocationError(errorMessage);
       toast.error(errorMessage);
       
-      // Set default location (optional - e.g., city center)
+      // Set default location (New Delhi)
       setUserLocation({
-        lat: 28.6139, // Default to New Delhi
+        lat: 28.6139,
         lng: 77.2090,
         isDefault: true
       });
@@ -97,11 +97,11 @@ const ReceiverDashboard = () => {
       setLastRefresh(new Date());
       
       if (foods.length === 0) {
-        toast.success('No food found nearby. Try expanding your search radius.');
+        toast.success('No products found nearby. Try expanding your search radius.');
       }
     } catch (error) {
-      console.error('Error fetching food:', error);
-      toast.error('Failed to load nearby food. Please try again.');
+      console.error('Error fetching products:', error);
+      toast.error('Failed to load nearby products. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -111,23 +111,20 @@ const ReceiverDashboard = () => {
     setRefreshing(true);
     await fetchNearbyFood();
     setRefreshing(false);
-    toast.success('Food list refreshed');
+    toast.success('Product list refreshed');
   };
 
   const applyFilters = () => {
     let filtered = [...foodItems];
 
-    // Filter by dietary type
     if (filters.dietaryType !== 'all') {
       filtered = filtered.filter(item => item.dietaryType === filters.dietaryType);
     }
 
-    // Filter by urgency
     if (filters.showUrgentOnly) {
       filtered = filtered.filter(item => item.isUrgent === true);
     }
 
-    // Filter by distance (already filtered by API, but double-check)
     if (filters.maxDistance) {
       filtered = filtered.filter(item => (item.distance || 0) <= filters.maxDistance);
     }
@@ -135,15 +132,27 @@ const ReceiverDashboard = () => {
     setFilteredItems(filtered);
   };
 
+  // ============================================
+  // MODIFIED: Updated claim handler to return order data
+  // ============================================
   const handleClaimFood = async (foodId) => {
     try {
-      await claimFood(foodId);
-      toast.success('Food claimed successfully! Check your dashboard for details.');
-      await fetchNearbyFood(); // Refresh the list
-      return true;
+      const response = await claimFood(foodId);
+      
+      // Display success message with payment instruction
+      toast.success(response.message || 'Order created! Please complete payment.', {
+        duration: 5000,
+        icon: '🛒'
+      });
+      
+      // Refresh the food list to update availability
+      await fetchNearbyFood();
+      
+      // Return the full response for the payment component
+      return response;
     } catch (error) {
-      console.error('Error claiming food:', error);
-      const errorMsg = error.response?.data?.message || 'Failed to claim food';
+      console.error('Error creating order:', error);
+      const errorMsg = error.response?.data?.message || 'Failed to create order';
       toast.error(errorMsg);
       throw error;
     }
@@ -194,9 +203,9 @@ const ReceiverDashboard = () => {
         {/* Header Section */}
         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Find Food Nearby</h1>
+            <h1 className="text-3xl font-bold text-gray-900">Find Products Nearby</h1>
             <p className="text-gray-600 mt-1 flex items-center gap-2">
-              Discover available food donations in your area
+              Discover available food products in your area
               {userLocation && !userLocation.isDefault && (
                 <span className="inline-flex items-center text-sm text-green-600 bg-green-50 px-2 py-1 rounded-full">
                   <FaLocationArrow className="mr-1" size={12} />
@@ -213,7 +222,6 @@ const ReceiverDashboard = () => {
           </div>
           
           <div className="flex flex-wrap gap-2">
-            {/* Search Radius Selector */}
             <select
               value={searchRadius}
               onChange={(e) => handleRadiusChange(Number(e.target.value))}
@@ -298,7 +306,7 @@ const ReceiverDashboard = () => {
           </div>
         )}
 
-        {/* Filter Bar (Expandable) */}
+        {/* Filter Bar */}
         {showFilters && (
           <div className="mb-4 animate-slide-down">
             <FilterBar filters={filters} setFilters={setFilters} />
@@ -365,12 +373,12 @@ const ReceiverDashboard = () => {
         {/* Empty State */}
         {filteredItems.length === 0 && !loading && (
           <div className="text-center py-16 bg-white rounded-lg shadow-sm mt-6">
-            <div className="text-7xl mb-4">🍽️</div>
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">No food available</h3>
+            <div className="text-7xl mb-4">🛒</div>
+            <h3 className="text-xl font-semibold text-gray-900 mb-2">No products available</h3>
             <p className="text-gray-500 max-w-md mx-auto">
               {searchRadius <= 10 
-                ? `No food donations found within ${searchRadius} km. Try expanding your search radius.`
-                : 'No food donations available in your area at the moment. Check back later!'}
+                ? `No products found within ${searchRadius} km. Try expanding your search radius.`
+                : 'No products available in your area at the moment. Check back later!'}
             </p>
             <div className="flex gap-3 justify-center mt-6">
               {searchRadius <= 10 && (
@@ -392,7 +400,7 @@ const ReceiverDashboard = () => {
           </div>
         )}
 
-        {/* Stats Section (Optional) */}
+        {/* Stats Section */}
         {filteredItems.length > 0 && (
           <div className="mt-8 p-4 bg-white rounded-lg shadow-sm">
             <div className="flex flex-wrap justify-around gap-4 text-center">
@@ -414,9 +422,9 @@ const ReceiverDashboard = () => {
               </div>
               <div>
                 <p className="text-2xl font-bold text-green-600">
-                  {Math.min(...filteredItems.map(item => item.distance || 999)).toFixed(1)} km
+                  ₹{filteredItems.reduce((sum, item) => sum + (item.price || 0), 0)}
                 </p>
-                <p className="text-sm text-gray-500">Closest Item</p>
+                <p className="text-sm text-gray-500">Total Value</p>
               </div>
             </div>
           </div>

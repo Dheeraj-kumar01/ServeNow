@@ -2,12 +2,33 @@ const FoodListing = require('../models/FoodListing');
 const User = require('../models/User');
 const Request = require('../models/Request');
 
-// @desc    Create food listing
+// Helper function to calculate distance
+function calculateDistance(lat1, lon1, lat2, lon2) {
+  const R = 6371; // Earth's radius in km
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = 
+    Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon/2) * Math.sin(dLon/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R * c;
+}
+
+// Helper function to check if food is expired
+function isFoodExpired(expiryDate, expiryTime) {
+  const expiryDateTime = new Date(`${expiryDate}T${expiryTime}`);
+  return expiryDateTime < new Date();
+}
+
+// @desc    Create food listing (SELLER)
 // @route   POST /api/food
-// @access  Private (Donor only)
+// @access  Private (Seller only)
 const createFoodListing = async (req, res) => {
   try {
     console.log('Creating food listing...');
+    console.log('Request body:', req.body);
+    console.log('Request file:', req.file);
     
     const {
       name,
@@ -20,16 +41,38 @@ const createFoodListing = async (req, res) => {
       expiryTime,
       pickupAddress,
       location,
-      isUrgent
+      isUrgent,
+      price
     } = req.body;
 
     // Validate required fields
-    if (!name || !category || !dietaryType || !quantity || !expiryDate || !expiryTime || !pickupAddress || !location) {
+    const missingFields = [];
+    if (!name) missingFields.push('name');
+    if (!category) missingFields.push('category');
+    if (!dietaryType) missingFields.push('dietaryType');
+    if (!quantity) missingFields.push('quantity');
+    if (!expiryDate) missingFields.push('expiryDate');
+    if (!expiryTime) missingFields.push('expiryTime');
+    if (!pickupAddress) missingFields.push('pickupAddress');
+    if (!location) missingFields.push('location');
+    if (!price) missingFields.push('price');
+    
+    if (missingFields.length > 0) {
       return res.status(400).json({ 
-        message: 'Missing required fields',
-        required: ['name', 'category', 'dietaryType', 'quantity', 'expiryDate', 'expiryTime', 'pickupAddress', 'location']
+        message: `Missing required fields: ${missingFields.join(', ')}`,
+        required: ['name', 'category', 'dietaryType', 'quantity', 'expiryDate', 'expiryTime', 'pickupAddress', 'location', 'price']
       });
     }
+
+    // Validate price
+    const parsedPrice = parseFloat(price);
+    if (isNaN(parsedPrice) || parsedPrice < 1) {
+      return res.status(400).json({ message: 'Price must be a valid number greater than 0' });
+    }
+
+    // Calculate commission (20%) and seller earning (80%)
+    const commission = parsedPrice * 0.20;
+    const sellerEarning = parsedPrice * 0.80;
 
     // Parse location
     let locationData;
@@ -51,8 +94,9 @@ const createFoodListing = async (req, res) => {
       return res.status(400).json({ message: 'Invalid location coordinates' });
     }
 
+    // Create food listing
     const food = await FoodListing.create({
-      donor: req.user._id,
+      seller: req.user._id,
       name: name.trim(),
       category,
       dietaryType,
@@ -67,18 +111,33 @@ const createFoodListing = async (req, res) => {
         coordinates: [lng, lat]
       },
       isUrgent: isUrgent === 'true' || isUrgent === true || false,
-      status: 'available',
-      image: req.file ? `/uploads/${req.file.filename}` : null
+      orderStatus: 'available',
+      paymentStatus: 'pending',
+      image: req.file ? `/uploads/${req.file.filename}` : null,
+      price: parsedPrice,
+      commission: commission,
+      sellerEarning: sellerEarning
     });
 
+    // Update seller stats
     await User.findByIdAndUpdate(req.user._id, {
-      $inc: { totalDonations: 1 }
+      $inc: { totalSales: 1 }
     });
 
+    console.log('Product created successfully:', food._id);
+    console.log(`Price: ₹${parsedPrice}, Commission: ₹${commission}, You earn: ₹${sellerEarning}`);
+    
     res.status(201).json({
       success: true,
-      message: 'Food listed successfully',
-      food
+      message: 'Product listed successfully',
+      food: {
+        _id: food._id,
+        name: food.name,
+        price: food.price,
+        commission: food.commission,
+        sellerEarning: food.sellerEarning,
+        orderStatus: food.orderStatus
+      }
     });
     
   } catch (error) {
@@ -87,7 +146,7 @@ const createFoodListing = async (req, res) => {
   }
 };
 
-// @desc    Get nearby food listings
+// @desc    Get nearby food listings (BUYER view)
 // @route   GET /api/food/nearby
 // @access  Public
 const getNearbyFood = async (req, res) => {
@@ -102,7 +161,7 @@ const getNearbyFood = async (req, res) => {
     const longitude = parseFloat(lng);
 
     const foods = await FoodListing.find({
-      status: 'available',
+      orderStatus: 'available',
       expiryDate: { $gte: new Date() },
       location: {
         $near: {
@@ -114,11 +173,16 @@ const getNearbyFood = async (req, res) => {
         }
       }
     })
-    .populate('donor', 'name phone rating')
+    .populate('seller', 'name phone rating')
     .sort({ isUrgent: -1, createdAt: -1 })
     .limit(50);
 
-    const foodsWithDistance = foods.map(food => {
+    // Filter out expired foods by time and calculate distance
+    const availableFoods = foods.filter(food => {
+      return !isFoodExpired(food.expiryDate, food.expiryTime);
+    });
+
+    const foodsWithDistance = availableFoods.map(food => {
       const foodLocation = food.location.coordinates;
       const distance = calculateDistance(
         latitude, longitude,
@@ -137,27 +201,38 @@ const getNearbyFood = async (req, res) => {
   }
 };
 
-// @desc    Get donor's food listings
+// @desc    Get seller's food listings
 // @route   GET /api/food/mine
-// @access  Private (Donor only)
+// @access  Private (Seller only)
 const getMyListings = async (req, res) => {
   try {
-    const foods = await FoodListing.find({ donor: req.user._id })
-      .populate('donor', 'name phone')
+    const foods = await FoodListing.find({ seller: req.user._id })
+      .populate('seller', 'name phone')
       .sort({ createdAt: -1 });
     
-    // Get claims for each food
-    const foodsWithClaims = await Promise.all(foods.map(async (food) => {
-      const claims = await Request.find({ food: food._id })
+    // Get orders for each food
+    const foodsWithOrders = await Promise.all(foods.map(async (food) => {
+      const orders = await Request.find({ food: food._id })
         .populate('receiver', 'name phone')
         .sort({ createdAt: -1 });
       return {
         ...food.toObject(),
-        claims
+        claims: orders
       };
     }));
     
-    res.json(foodsWithClaims);
+    // Calculate seller earnings summary
+    const totalEarnings = foods.reduce((sum, food) => sum + (food.sellerEarning || 0), 0);
+    const totalCommission = foods.reduce((sum, food) => sum + (food.commission || 0), 0);
+    
+    res.json({
+      products: foodsWithOrders,
+      stats: {
+        totalProducts: foods.length,
+        totalEarnings,
+        totalCommission
+      }
+    });
   } catch (error) {
     console.error('Get my listings error:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -170,10 +245,16 @@ const getMyListings = async (req, res) => {
 const getFoodById = async (req, res) => {
   try {
     const food = await FoodListing.findById(req.params.id)
-      .populate('donor', 'name phone rating address location');
+      .populate('seller', 'name phone rating address location');
     
     if (!food) {
       return res.status(404).json({ message: 'Food not found' });
+    }
+
+    // Check if food is expired
+    if (isFoodExpired(food.expiryDate, food.expiryTime)) {
+      food.orderStatus = 'expired';
+      await food.save();
     }
 
     food.views += 1;
@@ -188,7 +269,7 @@ const getFoodById = async (req, res) => {
 
 // @desc    Update food listing
 // @route   PUT /api/food/:id
-// @access  Private (Donor only)
+// @access  Private (Seller only)
 const updateFoodListing = async (req, res) => {
   try {
     let food = await FoodListing.findById(req.params.id);
@@ -197,8 +278,14 @@ const updateFoodListing = async (req, res) => {
       return res.status(404).json({ message: 'Food not found' });
     }
 
-    if (food.donor.toString() !== req.user._id.toString()) {
+    if (food.seller.toString() !== req.user._id.toString()) {
       return res.status(401).json({ message: 'Not authorized' });
+    }
+
+    // If price is updated, recalculate commission
+    if (req.body.price && req.body.price !== food.price) {
+      req.body.commission = req.body.price * 0.20;
+      req.body.sellerEarning = req.body.price * 0.80;
     }
 
     food = await FoodListing.findByIdAndUpdate(
@@ -216,7 +303,7 @@ const updateFoodListing = async (req, res) => {
 
 // @desc    Delete food listing
 // @route   DELETE /api/food/:id
-// @access  Private (Donor only)
+// @access  Private (Seller only)
 const deleteFoodListing = async (req, res) => {
   try {
     const food = await FoodListing.findById(req.params.id);
@@ -225,108 +312,135 @@ const deleteFoodListing = async (req, res) => {
       return res.status(404).json({ message: 'Food not found' });
     }
 
-    if (food.donor.toString() !== req.user._id.toString()) {
+    if (food.seller.toString() !== req.user._id.toString()) {
       return res.status(401).json({ message: 'Not authorized' });
     }
 
     await food.deleteOne();
-    res.json({ message: 'Food removed' });
+    res.json({ message: 'Product removed' });
   } catch (error) {
     console.error('Delete food error:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
 
-// @desc    Claim food
+// @desc    Create order (BUYER places order - formerly claimFood)
 // @route   POST /api/food/:id/claim
-// @access  Private (Receiver only)
+// @access  Private (Buyer only)
 const claimFood = async (req, res) => {
   try {
     const foodId = req.params.id;
-    const receiverId = req.user._id;
+    const buyerId = req.user._id;
 
-    console.log(`Claiming food: ${foodId} by user: ${receiverId}`);
+    console.log(`Creating order for product: ${foodId} by user: ${buyerId}`);
 
     // Find the food listing
     const food = await FoodListing.findById(foodId);
     
     if (!food) {
-      console.log('Food not found:', foodId);
-      return res.status(404).json({ message: 'Food not found' });
+      console.log('Product not found:', foodId);
+      return res.status(404).json({ message: 'Product not found' });
     }
 
-    console.log('Food found:', food.name, 'Status:', food.status);
+    console.log('Product found:', food.name, 'Status:', food.orderStatus);
 
-    // Check if food is available
-    if (food.status !== 'available') {
-      return res.status(400).json({ message: 'Food is no longer available' });
+    // Check if product is available
+    if (food.orderStatus !== 'available') {
+      return res.status(400).json({ message: 'Product is no longer available' });
     }
 
-    // Check if food is expired
-    const expiryDateTime = new Date(`${food.expiryDate}T${food.expiryTime}`);
-    if (expiryDateTime < new Date()) {
-      return res.status(400).json({ message: 'Food has expired' });
+    // Check if product is expired
+    if (isFoodExpired(food.expiryDate, food.expiryTime)) {
+      return res.status(400).json({ message: 'Product has expired' });
     }
 
-    // Check if user is trying to claim their own food
-    if (food.donor.toString() === receiverId.toString()) {
-      return res.status(400).json({ message: 'You cannot claim your own food' });
+    // Check if user is trying to buy their own product
+    if (food.seller.toString() === buyerId.toString()) {
+      return res.status(400).json({ message: 'You cannot buy your own product' });
     }
 
-    // Check if already claimed by this user
-    const existingClaim = await Request.findOne({
+    // Check if already ordered by this user
+    const existingOrder = await Request.findOne({
       food: foodId,
-      receiver: receiverId,
+      receiver: buyerId,
       status: { $in: ['pending', 'accepted'] }
     });
 
-    if (existingClaim) {
-      return res.status(400).json({ message: 'You have already claimed this food' });
+    if (existingOrder) {
+      return res.status(400).json({ message: 'You have already requested this product' });
     }
 
-    // Create claim request
+    // Create order request
     const request = await Request.create({
       food: foodId,
-      donor: food.donor,
-      receiver: receiverId,
+      donor: food.seller,
+      receiver: buyerId,
+      amount: food.price,
+      commission: food.commission,
+      sellerEarning: food.sellerEarning,
+      paymentStatus: 'pending',
       status: 'pending'
     });
 
-    console.log('Claim request created:', request._id);
+    console.log('Order created:', request._id);
 
-    // Update food status
-    food.status = 'pending';
-    food.claimedBy = receiverId;
+    // Update product status
+    food.orderStatus = 'requested';
+    food.orderedBy = buyerId;
     await food.save();
 
     res.status(201).json({
       success: true,
-      message: 'Food claimed successfully! Waiting for donor approval.',
-      claim: {
+      message: 'Order created successfully! Please complete payment.',
+      order: {
         _id: request._id,
         status: request.status,
+        amount: request.amount,
+        paymentStatus: request.paymentStatus,
         createdAt: request.createdAt
       }
     });
 
   } catch (error) {
-    console.error('Claim food error:', error);
+    console.error('Create order error:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
 
-// Helper function to calculate distance
-function calculateDistance(lat1, lon1, lat2, lon2) {
-  const R = 6371;
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a = 
-    Math.sin(dLat/2) * Math.sin(dLat/2) +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-    Math.sin(dLon/2) * Math.sin(dLon/2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-  return R * c;
-}
+// @desc    Get seller dashboard stats
+// @route   GET /api/food/seller/stats
+// @access  Private (Seller only)
+const getSellerStats = async (req, res) => {
+  try {
+    const sellerId = req.user._id;
+    
+    const products = await FoodListing.find({ seller: sellerId });
+    const orders = await Request.find({ donor: sellerId });
+    
+    const totalProducts = products.length;
+    const totalOrders = orders.length;
+    const totalRevenue = orders.reduce((sum, order) => sum + (order.sellerEarning || 0), 0);
+    const totalCommission = orders.reduce((sum, order) => sum + (order.commission || 0), 0);
+    const pendingOrders = orders.filter(o => o.status === 'pending').length;
+    const acceptedOrders = orders.filter(o => o.status === 'accepted').length;
+    const completedOrders = orders.filter(o => o.status === 'completed').length;
+    const rejectedOrders = orders.filter(o => o.status === 'rejected').length;
+    
+    res.json({
+      totalProducts,
+      totalOrders,
+      totalRevenue,
+      totalCommission,
+      pendingOrders,
+      acceptedOrders,
+      completedOrders,
+      rejectedOrders
+    });
+  } catch (error) {
+    console.error('Get seller stats error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
 
 module.exports = {
   createFoodListing,
@@ -335,5 +449,6 @@ module.exports = {
   getFoodById,
   updateFoodListing,
   deleteFoodListing,
-  claimFood
+  claimFood,
+  getSellerStats
 };

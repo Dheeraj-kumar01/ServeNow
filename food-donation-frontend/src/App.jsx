@@ -11,9 +11,10 @@ import Signup from './pages/auth/Signup';
 import DonorDashboard from './pages/donor/DonorDashboard';
 import AddFood from './pages/donor/AddFood';
 import MyListings from './pages/donor/MyListings';
-import DonorChat from './pages/donor/DonorChat'; // <-- ADD THIS IMPORT
+import SellerOrders from './pages/donor/SellerOrders';  // <-- ADD THIS IMPORT
 import ReceiverDashboard from './pages/receiver/ReceiverDashboard';
 import ReceiverClaims from './pages/receiver/ReceiverClaims';
+import BuyerOrders from './pages/receiver/BuyerOrders';  // <-- ADD THIS IMPORT
 
 // Components
 import Navbar from './components/common/Navbar';
@@ -60,11 +61,11 @@ function AppContent() {
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
         
-        {/* Donor Routes */}
+        {/* Seller Routes (formerly Donor) */}
         <Route 
           path="/donor/dashboard" 
           element={
-            <ProtectedRoute allowedRoles={['donor']}>
+            <ProtectedRoute allowedRoles={['seller', 'donor']}>
               <DonorDashboard />
             </ProtectedRoute>
           } 
@@ -72,7 +73,7 @@ function AppContent() {
         <Route 
           path="/donor/add-food" 
           element={
-            <ProtectedRoute allowedRoles={['donor']}>
+            <ProtectedRoute allowedRoles={['seller', 'donor']}>
               <AddFood />
             </ProtectedRoute>
           } 
@@ -80,25 +81,26 @@ function AppContent() {
         <Route 
           path="/donor/listings" 
           element={
-            <ProtectedRoute allowedRoles={['donor']}>
+            <ProtectedRoute allowedRoles={['seller', 'donor']}>
               <MyListings />
             </ProtectedRoute>
           } 
         />
+        {/* NEW: Seller Orders Route */}
         <Route 
-          path="/donor/chat"  // <-- ADD THIS ROUTE
+          path="/donor/orders" 
           element={
-            <ProtectedRoute allowedRoles={['donor']}>
-              <DonorChat />
+            <ProtectedRoute allowedRoles={['seller', 'donor']}>
+              <SellerOrders />
             </ProtectedRoute>
           } 
         />
         
-        {/* Receiver Routes */}
+        {/* Buyer Routes (formerly Receiver) */}
         <Route 
           path="/receiver/dashboard" 
           element={
-            <ProtectedRoute allowedRoles={['receiver']}>
+            <ProtectedRoute allowedRoles={['buyer', 'receiver']}>
               <ReceiverDashboard />
             </ProtectedRoute>
           } 
@@ -106,8 +108,17 @@ function AppContent() {
         <Route 
           path="/receiver/claims" 
           element={
-            <ProtectedRoute allowedRoles={['receiver']}>
+            <ProtectedRoute allowedRoles={['buyer', 'receiver']}>
               <ReceiverClaims />
+            </ProtectedRoute>
+          } 
+        />
+        {/* NEW: Buyer Orders Route */}
+        <Route 
+          path="/receiver/orders" 
+          element={
+            <ProtectedRoute allowedRoles={['buyer', 'receiver']}>
+              <BuyerOrders />
             </ProtectedRoute>
           } 
         />

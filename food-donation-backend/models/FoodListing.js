@@ -1,16 +1,16 @@
 const mongoose = require('mongoose');
 
 const foodListingSchema = new mongoose.Schema({
-  donor: {
+  seller: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: true
   },
   name: {
     type: String,
-    required: [true, 'Please add food name'],
+    required: [true, 'Please add product name'],
     trim: true,
-    maxlength: [100, 'Food name cannot be more than 100 characters']
+    maxlength: [100, 'Product name cannot be more than 100 characters']
   },
   category: {
     type: String,
@@ -32,13 +32,26 @@ const foodListingSchema = new mongoose.Schema({
     enum: ['kg', 'g', 'plate', 'box', 'packet', 'bottle', 'piece', 'serving'],
     default: 'kg'
   },
+  price: {
+    type: Number,
+    required: [true, 'Please add price'],
+    min: [1, 'Price must be at least ₹1']
+  },
+  commission: {
+    type: Number,
+    default: 0
+  },
+  sellerEarning: {
+    type: Number,
+    default: 0
+  },
   description: {
     type: String,
     maxlength: [500, 'Description cannot be more than 500 characters']
   },
   image: {
     type: String,
-    default: 'default-food.jpg'
+    default: 'default-product.jpg'
   },
   expiryDate: {
     type: Date,
@@ -63,16 +76,21 @@ const foodListingSchema = new mongoose.Schema({
       required: true
     }
   },
-  status: {
+  orderStatus: {
     type: String,
-    enum: ['available', 'claimed', 'pending', 'completed', 'expired', 'cancelled'],
+    enum: ['available', 'requested', 'accepted', 'delivered', 'cancelled', 'expired'],
     default: 'available'
+  },
+  paymentStatus: {
+    type: String,
+    enum: ['pending', 'paid', 'failed', 'refunded'],
+    default: 'pending'
   },
   isUrgent: {
     type: Boolean,
     default: false
   },
-  claimedBy: {
+  orderedBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
   },
@@ -84,12 +102,12 @@ const foodListingSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Create index for location-based queries
-foodListingSchema.index({ location: '2dsphere' });
-foodListingSchema.index({ status: 1, expiryDate: 1 });
-foodListingSchema.index({ donor: 1, createdAt: -1 });
+// REMOVED: problematic pre-save hook
+// Commission is now calculated in the controller
 
-// REMOVED: The problematic pre-save hook
-// Expiry will be handled in the controller
+// Create indexes
+foodListingSchema.index({ location: '2dsphere' });
+foodListingSchema.index({ orderStatus: 1, expiryDate: 1 });
+foodListingSchema.index({ seller: 1, createdAt: -1 });
 
 module.exports = mongoose.model('FoodListing', foodListingSchema);

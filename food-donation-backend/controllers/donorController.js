@@ -4,42 +4,42 @@ const User = require('../models/User');
 
 // @desc    Get donor statistics
 // @route   GET /api/donor/stats
-// @access  Private (Donor only)
+// @access  Private (Donor/Seller only)
 const getDonorStats = async (req, res) => {
   try {
-    const donorId = req.user._id;
+    const sellerId = req.user._id;
 
-    // Get total donations count
-    const totalDonations = await FoodListing.countDocuments({ donor: donorId });
+    // Get total products count
+    const totalProducts = await FoodListing.countDocuments({ seller: sellerId });
 
     // Get active listings (available and not expired)
     const activeListings = await FoodListing.countDocuments({
-      donor: donorId,
-      status: 'available',
+      seller: sellerId,
+      orderStatus: 'available',
       expiryDate: { $gte: new Date() }
     });
 
-    // Get completed donations (food that was claimed and completed)
-    const completedDonations = await FoodListing.countDocuments({
-      donor: donorId,
+    // Get completed orders (delivered)
+    const completedOrders = await Request.countDocuments({
+      donor: sellerId,
       status: 'completed'
     });
 
-    // Get total beneficiaries (unique receivers who claimed donor's food)
+    // Get total beneficiaries (unique buyers)
     const beneficiaries = await Request.distinct('receiver', {
-      donor: donorId,
+      donor: sellerId,
       status: 'completed'
     });
     const totalBeneficiaries = beneficiaries.length;
 
-    // Get total food quantity donated (sum of all quantities)
-    const foodItems = await FoodListing.find({ donor: donorId });
-    const totalQuantity = foodItems.reduce((sum, item) => sum + item.quantity, 0);
+    // Get total food quantity sold
+    const products = await FoodListing.find({ seller: sellerId });
+    const totalQuantity = products.reduce((sum, item) => sum + item.quantity, 0);
 
     res.json({
-      totalDonations,
+      totalDonations: totalProducts,
       activeListings,
-      completedDonations,
+      completedDonations: completedOrders,
       totalBeneficiaries,
       totalQuantity: totalQuantity.toFixed(1)
     });
@@ -49,32 +49,20 @@ const getDonorStats = async (req, res) => {
   }
 };
 
-// @desc    Get donor's recent claims
+// @desc    Get donor's recent claims/orders
 // @route   GET /api/donor/claims/recent
-// @access  Private (Donor only)
+// @access  Private (Donor/Seller only)
 const getDonorRecentClaims = async (req, res) => {
   try {
-    const donorId = req.user._id;
+    const sellerId = req.user._id;
 
-    // Get recent claims for donor's food
-    const recentClaims = await Request.find({ donor: donorId })
-      .populate('food', 'name quantity unit image')
+    const recentClaims = await Request.find({ donor: sellerId })
+      .populate('food', 'name quantity unit image price')
       .populate('receiver', 'name phone')
       .sort({ createdAt: -1 })
-      .limit(5);
+      .limit(10);
 
-    // Format claims for display
-    const formattedClaims = recentClaims.map(claim => ({
-      _id: claim._id,
-      food: claim.food,
-      receiver: claim.receiver,
-      status: claim.status,
-      message: claim.message,
-      createdAt: claim.createdAt,
-      updatedAt: claim.updatedAt
-    }));
-
-    res.json(formattedClaims);
+    res.json(recentClaims);
   } catch (error) {
     console.error('Get donor recent claims error:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -83,20 +71,20 @@ const getDonorRecentClaims = async (req, res) => {
 
 // @desc    Get all claims for donor
 // @route   GET /api/donor/claims
-// @access  Private (Donor only)
+// @access  Private (Donor/Seller only)
 const getDonorAllClaims = async (req, res) => {
   try {
-    const donorId = req.user._id;
+    const sellerId = req.user._id;
     const { status, page = 1, limit = 10 } = req.query;
 
-    let query = { donor: donorId };
+    let query = { donor: sellerId };
     
     if (status && status !== 'all') {
       query.status = status;
     }
 
     const claims = await Request.find(query)
-      .populate('food', 'name quantity unit image pickupAddress')
+      .populate('food', 'name quantity unit image pickupAddress price')
       .populate('receiver', 'name phone address')
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
