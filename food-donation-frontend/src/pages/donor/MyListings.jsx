@@ -21,7 +21,6 @@ import {
 } from 'react-icons/fa';
 import toast from 'react-hot-toast';
 
-// Get backend URL
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 const BACKEND_URL = API_URL.replace('/api', '');
 const DEFAULT_IMAGE = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"%3E%3Crect width="200" height="200" fill="%23f3f4f6"/%3E%3Ccircle cx="100" cy="100" r="60" fill="%23e5e7eb"/%3E%3Cpath d="M70 80 L130 80 L120 130 L80 130 Z" fill="%239ca3af"/%3E%3Ccircle cx="100" cy="95" r="12" fill="%23d1d5db"/%3E%3Cpath d="M95 95 L105 95 L100 105 Z" fill="%239ca3af"/%3E%3Ctext x="100" y="170" text-anchor="middle" fill="%236b7280" font-size="14"%3ENo Image%3C/text%3E%3C/svg%3E';
@@ -39,18 +38,13 @@ const MyListings = () => {
   const fetchListings = async () => {
     try {
       const data = await getDonorFoodListings();
-      console.log('Fetched listings data:', data);
+      console.log('Fetched listings:', data);
       
-      // Handle different response formats
       let listingsArray = [];
       if (Array.isArray(data)) {
         listingsArray = data;
       } else if (data && data.products && Array.isArray(data.products)) {
         listingsArray = data.products;
-      } else if (data && data.listings && Array.isArray(data.listings)) {
-        listingsArray = data.listings;
-      } else if (data && data.data && Array.isArray(data.data)) {
-        listingsArray = data.data;
       } else {
         listingsArray = [];
       }
@@ -65,17 +59,29 @@ const MyListings = () => {
     }
   };
 
+  // Fixed: handleAcceptClaim with better error handling
   const handleAcceptClaim = async (claimId) => {
     setProcessingClaims(prev => ({ ...prev, [claimId]: true }));
     try {
-      await acceptClaimRequest(claimId);
-      const response = await generateClaimOTP(claimId);
-      const otp = response.otp || response;
-      toast.success(`Claim accepted! Share OTP: ${otp} with the buyer`);
+      console.log('Accepting claim:', claimId);
+      
+      const response = await acceptClaimRequest(claimId);
+      console.log('Accept response:', response);
+      
+      // Generate OTP after acceptance
+      const otpResponse = await generateClaimOTP(claimId);
+      const otp = otpResponse.otp || otpResponse;
+      
+      toast.success(`Order accepted! OTP: ${otp}`, {
+        duration: 10000,
+        icon: '🔑'
+      });
+      
       fetchListings();
     } catch (error) {
       console.error('Error accepting claim:', error);
-      toast.error(error.response?.data?.message || 'Failed to accept claim');
+      const errorMsg = error.response?.data?.message || 'Failed to accept order';
+      toast.error(errorMsg);
     } finally {
       setProcessingClaims(prev => ({ ...prev, [claimId]: false }));
     }
@@ -87,11 +93,11 @@ const MyListings = () => {
     setProcessingClaims(prev => ({ ...prev, [claimId]: true }));
     try {
       await rejectClaimRequest(claimId);
-      toast.success('Claim rejected');
+      toast.success('Order rejected');
       fetchListings();
     } catch (error) {
       console.error('Error rejecting claim:', error);
-      toast.error(error.response?.data?.message || 'Failed to reject claim');
+      toast.error(error.response?.data?.message || 'Failed to reject order');
     } finally {
       setProcessingClaims(prev => ({ ...prev, [claimId]: false }));
     }
@@ -99,43 +105,28 @@ const MyListings = () => {
 
   const getStatusColor = (status) => {
     switch (status) {
-      case 'available':
-        return 'bg-green-100 text-green-800';
-      case 'claimed':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'pending':
-        return 'bg-orange-100 text-orange-800';
-      case 'completed':
-        return 'bg-blue-100 text-blue-800';
-      case 'expired':
-        return 'bg-gray-100 text-gray-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
+      case 'available': return 'bg-green-100 text-green-800';
+      case 'claimed': return 'bg-yellow-100 text-yellow-800';
+      case 'pending': return 'bg-orange-100 text-orange-800';
+      case 'completed': return 'bg-blue-100 text-blue-800';
+      case 'expired': return 'bg-gray-100 text-gray-800';
+      default: return 'bg-gray-100 text-gray-800';
     }
   };
 
   const getClaimStatusColor = (status) => {
     switch (status) {
-      case 'pending':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'accepted':
-        return 'bg-blue-100 text-blue-800';
-      case 'rejected':
-        return 'bg-red-100 text-red-800';
-      case 'completed':
-        return 'bg-green-100 text-green-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
+      case 'pending': return 'bg-yellow-100 text-yellow-800';
+      case 'accepted': return 'bg-blue-100 text-blue-800';
+      case 'rejected': return 'bg-red-100 text-red-800';
+      case 'completed': return 'bg-green-100 text-green-800';
+      default: return 'bg-gray-100 text-gray-800';
     }
   };
 
   const getImageUrl = (imagePath) => {
-    if (!imagePath || imageErrors[imagePath]) {
-      return DEFAULT_IMAGE;
-    }
-    if (imagePath.startsWith('http')) {
-      return imagePath;
-    }
+    if (!imagePath || imageErrors[imagePath]) return DEFAULT_IMAGE;
+    if (imagePath.startsWith('http')) return imagePath;
     return `${BACKEND_URL}${imagePath}`;
   };
 
@@ -170,20 +161,15 @@ const MyListings = () => {
           {listings.map(listing => (
             <div key={listing._id} className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow">
               <div className="md:flex">
-                {/* Image */}
                 <div className="md:w-48 h-48 md:h-auto bg-gray-100 flex items-center justify-center">
                   <img
                     src={getImageUrl(listing.image)}
                     alt={listing.name}
                     className="w-full h-full object-cover"
-                    onError={(e) => {
-                      handleImageError(listing.image);
-                      e.target.src = DEFAULT_IMAGE;
-                    }}
+                    onError={(e) => { handleImageError(listing.image); e.target.src = DEFAULT_IMAGE; }}
                   />
                 </div>
                 
-                {/* Content */}
                 <div className="flex-1 p-6">
                   <div className="flex justify-between items-start flex-wrap gap-2">
                     <div>
@@ -222,7 +208,6 @@ const MyListings = () => {
                     </div>
                   </div>
                   
-                  {/* Claims Section */}
                   {listing.claims && listing.claims.length > 0 && (
                     <div className="mt-6 border-t pt-4">
                       <h4 className="font-semibold text-gray-900 mb-3">Orders Received ({listing.claims.length})</h4>
@@ -247,11 +232,6 @@ const MyListings = () => {
                                 <p className="text-sm text-gray-600">
                                   Amount: <span className="font-semibold text-green-600">₹{claim.amount || listing.price}</span>
                                 </p>
-                                {claim.message && (
-                                  <p className="text-sm text-gray-500 mt-2 italic">
-                                    "{claim.message}"
-                                  </p>
-                                )}
                               </div>
                               <div className="flex flex-col items-end gap-2">
                                 <span className={`px-3 py-1 rounded-full text-xs font-medium ${getClaimStatusColor(claim.status)}`}>

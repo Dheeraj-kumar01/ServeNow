@@ -4,7 +4,7 @@ const Request = require('../models/Request');
 
 // Helper function to calculate distance
 function calculateDistance(lat1, lon1, lat2, lon2) {
-  const R = 6371; // Earth's radius in km
+  const R = 6371;
   const dLat = (lat2 - lat1) * Math.PI / 180;
   const dLon = (lon2 - lon1) * Math.PI / 180;
   const a = 
@@ -27,8 +27,6 @@ function isFoodExpired(expiryDate, expiryTime) {
 const createFoodListing = async (req, res) => {
   try {
     console.log('Creating food listing...');
-    console.log('Request body:', req.body);
-    console.log('Request file:', req.file);
     
     const {
       name,
@@ -45,7 +43,6 @@ const createFoodListing = async (req, res) => {
       price
     } = req.body;
 
-    // Validate required fields
     const missingFields = [];
     if (!name) missingFields.push('name');
     if (!category) missingFields.push('category');
@@ -59,12 +56,10 @@ const createFoodListing = async (req, res) => {
     
     if (missingFields.length > 0) {
       return res.status(400).json({ 
-        message: `Missing required fields: ${missingFields.join(', ')}`,
-        required: ['name', 'category', 'dietaryType', 'quantity', 'expiryDate', 'expiryTime', 'pickupAddress', 'location', 'price']
+        message: `Missing required fields: ${missingFields.join(', ')}`
       });
     }
 
-    // Validate price
     const parsedPrice = parseFloat(price);
     if (isNaN(parsedPrice) || parsedPrice < 1) {
       return res.status(400).json({ message: 'Price must be a valid number greater than 0' });
@@ -74,7 +69,6 @@ const createFoodListing = async (req, res) => {
     const commission = parsedPrice * 0.20;
     const sellerEarning = parsedPrice * 0.80;
 
-    // Parse location
     let locationData;
     if (typeof location === 'string') {
       try {
@@ -94,7 +88,6 @@ const createFoodListing = async (req, res) => {
       return res.status(400).json({ message: 'Invalid location coordinates' });
     }
 
-    // Create food listing
     const food = await FoodListing.create({
       seller: req.user._id,
       name: name.trim(),
@@ -119,25 +112,14 @@ const createFoodListing = async (req, res) => {
       sellerEarning: sellerEarning
     });
 
-    // Update seller stats
     await User.findByIdAndUpdate(req.user._id, {
       $inc: { totalSales: 1 }
     });
 
-    console.log('Product created successfully:', food._id);
-    console.log(`Price: ₹${parsedPrice}, Commission: ₹${commission}, You earn: ₹${sellerEarning}`);
-    
     res.status(201).json({
       success: true,
       message: 'Product listed successfully',
-      food: {
-        _id: food._id,
-        name: food.name,
-        price: food.price,
-        commission: food.commission,
-        sellerEarning: food.sellerEarning,
-        orderStatus: food.orderStatus
-      }
+      food
     });
     
   } catch (error) {
@@ -177,7 +159,6 @@ const getNearbyFood = async (req, res) => {
     .sort({ isUrgent: -1, createdAt: -1 })
     .limit(50);
 
-    // Filter out expired foods by time and calculate distance
     const availableFoods = foods.filter(food => {
       return !isFoodExpired(food.expiryDate, food.expiryTime);
     });
@@ -210,7 +191,6 @@ const getMyListings = async (req, res) => {
       .populate('seller', 'name phone')
       .sort({ createdAt: -1 });
     
-    // Get orders for each food
     const foodsWithOrders = await Promise.all(foods.map(async (food) => {
       const orders = await Request.find({ food: food._id })
         .populate('receiver', 'name phone')
@@ -221,18 +201,7 @@ const getMyListings = async (req, res) => {
       };
     }));
     
-    // Calculate seller earnings summary
-    const totalEarnings = foods.reduce((sum, food) => sum + (food.sellerEarning || 0), 0);
-    const totalCommission = foods.reduce((sum, food) => sum + (food.commission || 0), 0);
-    
-    res.json({
-      products: foodsWithOrders,
-      stats: {
-        totalProducts: foods.length,
-        totalEarnings,
-        totalCommission
-      }
-    });
+    res.json(foodsWithOrders);
   } catch (error) {
     console.error('Get my listings error:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -251,7 +220,6 @@ const getFoodById = async (req, res) => {
       return res.status(404).json({ message: 'Food not found' });
     }
 
-    // Check if food is expired
     if (isFoodExpired(food.expiryDate, food.expiryTime)) {
       food.orderStatus = 'expired';
       await food.save();
@@ -282,7 +250,6 @@ const updateFoodListing = async (req, res) => {
       return res.status(401).json({ message: 'Not authorized' });
     }
 
-    // If price is updated, recalculate commission
     if (req.body.price && req.body.price !== food.price) {
       req.body.commission = req.body.price * 0.20;
       req.body.sellerEarning = req.body.price * 0.80;
@@ -324,7 +291,7 @@ const deleteFoodListing = async (req, res) => {
   }
 };
 
-// @desc    Create order (BUYER places order - formerly claimFood)
+// @desc    Create order (BUYER places order)
 // @route   POST /api/food/:id/claim
 // @access  Private (Buyer only)
 const claimFood = async (req, res) => {
@@ -334,32 +301,24 @@ const claimFood = async (req, res) => {
 
     console.log(`Creating order for product: ${foodId} by user: ${buyerId}`);
 
-    // Find the food listing
     const food = await FoodListing.findById(foodId);
     
     if (!food) {
-      console.log('Product not found:', foodId);
       return res.status(404).json({ message: 'Product not found' });
     }
 
-    console.log('Product found:', food.name, 'Status:', food.orderStatus);
-
-    // Check if product is available
     if (food.orderStatus !== 'available') {
       return res.status(400).json({ message: 'Product is no longer available' });
     }
 
-    // Check if product is expired
     if (isFoodExpired(food.expiryDate, food.expiryTime)) {
       return res.status(400).json({ message: 'Product has expired' });
     }
 
-    // Check if user is trying to buy their own product
     if (food.seller.toString() === buyerId.toString()) {
       return res.status(400).json({ message: 'You cannot buy your own product' });
     }
 
-    // Check if already ordered by this user
     const existingOrder = await Request.findOne({
       food: foodId,
       receiver: buyerId,
@@ -382,13 +341,14 @@ const claimFood = async (req, res) => {
       status: 'pending'
     });
 
-    console.log('Order created:', request._id);
-
     // Update product status
     food.orderStatus = 'requested';
     food.orderedBy = buyerId;
     await food.save();
 
+    console.log('Order created:', request._id);
+
+    // IMPORTANT: Return order object with _id for payment
     res.status(201).json({
       success: true,
       message: 'Order created successfully! Please complete payment.',

@@ -4,6 +4,7 @@ import api from './api';
 // PRODUCT CRUD OPERATIONS
 // ============================================
 
+// Add new product (Seller)
 export const addFood = async (formData) => {
   const response = await api.post('/food', formData, {
     headers: { 'Content-Type': 'multipart/form-data' }
@@ -11,6 +12,7 @@ export const addFood = async (formData) => {
   return response.data;
 };
 
+// Get seller's products
 export const getDonorFoodListings = async () => {
   try {
     const response = await api.get('/food/mine');
@@ -27,11 +29,13 @@ export const getDonorFoodListings = async () => {
   }
 };
 
+// Get single product by ID
 export const getFoodById = async (foodId) => {
   const response = await api.get(`/food/${foodId}`);
   return response.data;
 };
 
+// Update product
 export const updateFood = async (foodId, formData) => {
   const response = await api.put(`/food/${foodId}`, formData, {
     headers: { 'Content-Type': 'multipart/form-data' }
@@ -39,6 +43,7 @@ export const updateFood = async (foodId, formData) => {
   return response.data;
 };
 
+// Delete product
 export const deleteFood = async (foodId) => {
   const response = await api.delete(`/food/${foodId}`);
   return response.data;
@@ -48,6 +53,7 @@ export const deleteFood = async (foodId) => {
 // NEARBY PRODUCT SEARCH
 // ============================================
 
+// Get nearby products (Buyer)
 export const getNearbyFood = async (lat, lng, radius = 10) => {
   const response = await api.get('/food/nearby', {
     params: { lat, lng, radius }
@@ -55,6 +61,7 @@ export const getNearbyFood = async (lat, lng, radius = 10) => {
   return response.data;
 };
 
+// Search products with filters
 export const searchFood = async (searchParams) => {
   const response = await api.get('/food/search', { params: searchParams });
   return response.data;
@@ -64,41 +71,49 @@ export const searchFood = async (searchParams) => {
 // ORDER OPERATIONS
 // ============================================
 
+// Create order (Buyer places order)
 export const claimFood = async (foodId) => {
   const response = await api.post(`/food/${foodId}/claim`);
   return response.data;
 };
 
+// Get buyer's orders
 export const getMyClaims = async () => {
   const response = await api.get('/claims/mine');
   return response.data;
 };
 
+// Accept order (Seller)
 export const acceptClaimRequest = async (claimId) => {
   const response = await api.put(`/requests/${claimId}/accept`);
   return response.data;
 };
 
+// Reject order (Seller)
 export const rejectClaimRequest = async (claimId) => {
   const response = await api.put(`/requests/${claimId}/reject`);
   return response.data;
 };
 
+// Generate OTP for delivery (Seller)
 export const generateClaimOTP = async (claimId) => {
   const response = await api.post(`/requests/${claimId}/generate-otp`);
   return response.data;
 };
 
+// Verify OTP and complete delivery (Buyer)
 export const verifyClaimOTP = async (claimId, otp) => {
   const response = await api.post(`/requests/${claimId}/verify`, { otp });
   return response.data;
 };
 
+// Get seller orders with stats
 export const getSellerOrders = async () => {
   try {
     const response = await api.get('/requests/seller/orders');
     return response.data;
   } catch (error) {
+    console.error('Error fetching seller orders:', error);
     return { orders: [], stats: {} };
   }
 };
@@ -113,7 +128,7 @@ export const createRazorpayOrder = async (requestId) => {
   return response.data;
 };
 
-// Verify payment
+// Verify payment - ADD THIS FUNCTION
 export const verifyPayment = async (paymentData) => {
   const response = await api.post('/payments/verify', paymentData);
   return response.data;
@@ -129,36 +144,51 @@ export const getPaymentStatus = async (requestId) => {
 // SELLER STATS
 // ============================================
 
+// Get seller dashboard stats
 export const getSellerStats = async () => {
   try {
     const response = await api.get('/donor/stats');
     return response.data;
   } catch (error) {
+    console.error('Error fetching seller stats:', error);
     return {
       totalProducts: 0,
       totalOrders: 0,
       totalRevenue: 0,
       totalCommission: 0,
       pendingOrders: 0,
-      completedOrders: 0
+      completedOrders: 0,
+      totalDonations: 0,
+      activeListings: 0,
+      completedDonations: 0,
+      totalBeneficiaries: 0
     };
   }
 };
 
+// Get donor stats (compatibility)
 export const getDonorStats = async () => {
   try {
     const response = await api.get('/donor/stats');
     return response.data;
   } catch (error) {
-    return { totalDonations: 0, activeListings: 0, completedDonations: 0, totalBeneficiaries: 0 };
+    console.error('Error fetching donor stats:', error);
+    return {
+      totalDonations: 0,
+      activeListings: 0,
+      completedDonations: 0,
+      totalBeneficiaries: 0
+    };
   }
 };
 
+// Get donor recent claims
 export const getDonorRecentClaims = async () => {
   try {
     const response = await api.get('/donor/claims/recent');
     return response.data;
   } catch (error) {
+    console.error('Error fetching donor recent claims:', error);
     return [];
   }
 };
@@ -168,6 +198,7 @@ export const getDonorAllClaims = async () => {
     const response = await api.get('/donor/claims');
     return response.data;
   } catch (error) {
+    console.error('Error fetching donor all claims:', error);
     return { claims: [], total: 0, page: 1, pages: 0 };
   }
 };
@@ -186,7 +217,13 @@ export const getReceiverStats = async () => {
     const response = await api.get('/receiver/stats');
     return response.data;
   } catch (error) {
-    return { totalClaims: 0, completedClaims: 0, pendingClaims: 0, totalQuantity: 0 };
+    console.error('Error fetching receiver stats:', error);
+    return {
+      totalClaims: 0,
+      completedClaims: 0,
+      pendingClaims: 0,
+      totalQuantity: 0
+    };
   }
 };
 
@@ -195,6 +232,7 @@ export const getReceiverClaims = async () => {
     const response = await api.get('/requests/receiver/claims');
     return response.data;
   } catch (error) {
+    console.error('Error fetching receiver claims:', error);
     return [];
   }
 };
@@ -204,6 +242,7 @@ export const getReceiverActiveClaims = async () => {
     const response = await api.get('/receiver/claims/active');
     return response.data;
   } catch (error) {
+    console.error('Error fetching active claims:', error);
     return [];
   }
 };
@@ -217,7 +256,13 @@ export const getImpactMetrics = async () => {
     const response = await api.get('/impact/metrics');
     return response.data;
   } catch (error) {
-    return { foodSaved: 0, co2Reduced: 0, mealsProvided: 0, waterSaved: 0 };
+    console.error('Error fetching impact metrics:', error);
+    return {
+      foodSaved: 0,
+      co2Reduced: 0,
+      mealsProvided: 0,
+      waterSaved: 0
+    };
   }
 };
 
@@ -226,15 +271,24 @@ export const getUserImpact = async () => {
     const response = await api.get('/impact/user');
     return response.data;
   } catch (error) {
-    return { totalDonations: 0, totalClaims: 0, foodSaved: 0, co2Reduced: 0 };
+    console.error('Error fetching user impact:', error);
+    return {
+      totalDonations: 0,
+      totalClaims: 0,
+      foodSaved: 0,
+      co2Reduced: 0
+    };
   }
 };
 
 export const getLeaderboard = async (type = 'seller', limit = 10) => {
   try {
-    const response = await api.get('/impact/leaderboard', { params: { type, limit } });
+    const response = await api.get('/impact/leaderboard', {
+      params: { type, limit }
+    });
     return response.data;
   } catch (error) {
+    console.error('Error fetching leaderboard:', error);
     return [];
   }
 };
@@ -248,6 +302,7 @@ export const getNotifications = async () => {
     const response = await api.get('/notifications');
     return response.data;
   } catch (error) {
+    console.error('Error fetching notifications:', error);
     return [];
   }
 };
@@ -282,6 +337,7 @@ export const getUserRatings = async (userId) => {
 
 export const formatFoodData = (foodData) => {
   const formData = new FormData();
+  
   Object.keys(foodData).forEach(key => {
     if (key === 'location' && foodData[key]) {
       formData.append(key, JSON.stringify(foodData[key]));
@@ -291,6 +347,7 @@ export const formatFoodData = (foodData) => {
       formData.append(key, foodData[key]);
     }
   });
+  
   return formData;
 };
 
@@ -298,7 +355,8 @@ export const calculateDistance = (lat1, lon1, lat2, lon2) => {
   const R = 6371;
   const dLat = (lat2 - lat1) * Math.PI / 180;
   const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+  const a = 
+    Math.sin(dLat/2) * Math.sin(dLat/2) +
     Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
     Math.sin(dLon/2) * Math.sin(dLon/2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
@@ -316,6 +374,10 @@ export const isExpired = (expiryDate, expiryTime) => {
   return expiryDateTime < new Date();
 };
 
+// ============================================
+// DEFAULT EXPORT
+// ============================================
+
 export default {
   addFood,
   getDonorFoodListings,
@@ -330,6 +392,9 @@ export default {
   rejectClaimRequest,
   generateClaimOTP,
   verifyClaimOTP,
+  createRazorpayOrder,
+  verifyPayment,
+  getPaymentStatus,
   getSellerStats,
   getSellerOrders,
   getDonorStats,
@@ -339,9 +404,6 @@ export default {
   getReceiverStats,
   getReceiverClaims,
   getReceiverActiveClaims,
-  createRazorpayOrder,
-  verifyPayment,
-  getPaymentStatus,
   getImpactMetrics,
   getUserImpact,
   getLeaderboard,

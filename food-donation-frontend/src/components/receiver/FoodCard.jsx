@@ -86,6 +86,7 @@ const FoodCard = ({ food, userLocation, onClaim, onViewMap }) => {
     return { text: 'Available', color: 'bg-green-100 text-green-800', icon: null };
   };
 
+  // Fixed: handleBuyNow function with proper payment modal opening
   const handleBuyNow = async () => {
     if (isExpired) {
       toast.error('This product has expired');
@@ -98,15 +99,44 @@ const FoodCard = ({ food, userLocation, onClaim, onViewMap }) => {
     setIsOrdering(true);
     try {
       const result = await onClaim(food._id);
-      if (result && result.order) {
-        setOrderCreated(result.order);
+      console.log('Order creation result:', result);
+      
+      // Try multiple ways to get order data
+      let orderData = null;
+      
+      if (result?.order) {
+        orderData = result.order;
+      } else if (result?.claim) {
+        orderData = result.claim;
+      } else if (result?.data?.order) {
+        orderData = result.data.order;
+      } else if (result?._id) {
+        orderData = result;
+      }
+      
+      if (orderData) {
+        console.log('Setting order data:', orderData);
+        setOrderCreated(orderData);
         setShowPayment(true);
+        toast.success('Please complete payment');
+      } else {
+        console.error('No order data in response:', result);
+        toast.error('Payment window could not be opened. Please contact support.');
       }
     } catch (error) {
+      console.error('Error creating order:', error);
       toast.error(error.response?.data?.message || 'Failed to create order');
     } finally {
       setIsOrdering(false);
     }
+  };
+
+  const handlePaymentSuccess = () => {
+    setShowPayment(false);
+    toast.success('Payment successful! Order confirmed.');
+    setTimeout(() => {
+      window.location.reload();
+    }, 1500);
   };
 
   const handleViewMap = () => {
@@ -162,7 +192,7 @@ const FoodCard = ({ food, userLocation, onClaim, onViewMap }) => {
           
           <div className="absolute top-2 right-2 px-3 py-1 rounded-full text-xs font-semibold flex items-center shadow-lg bg-white">
             <FaRupeeSign className="mr-1 text-green-600" />
-            <span className="font-bold text-green-600">{food.price}</span>
+            <span className="font-bold text-green-600">₹{food.price}</span>
           </div>
           
           <div className={`absolute bottom-2 right-2 px-3 py-1 rounded-full text-xs font-semibold flex items-center ${status.color} shadow-lg`}>
@@ -248,11 +278,7 @@ const FoodCard = ({ food, userLocation, onClaim, onViewMap }) => {
           order={orderCreated}
           productName={food.name}
           amount={food.price}
-          onSuccess={() => {
-            setShowPayment(false);
-            toast.success('Order confirmed! Check your orders page.');
-            if (onViewMap) onViewMap(food);
-          }}
+          onSuccess={handlePaymentSuccess}
           onClose={() => setShowPayment(false)}
         />
       )}
