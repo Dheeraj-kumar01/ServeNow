@@ -42,21 +42,25 @@ app.use((req, res, next) => {
   next();
 });
 
-// Route files
+// ============================================
+// ROUTE FILES
+// ============================================
 const authRoutes = require('./routes/authRoutes');
 const foodRoutes = require('./routes/foodRoutes');
 const requestRoutes = require('./routes/requestRoutes');
 const chatRoutes = require('./routes/chatRoutes');
 const donorRoutes = require('./routes/donorRoutes');
-const paymentRoutes = require('./routes/paymentRoutes'); // <-- ADD THIS IMPORT
+const paymentRoutes = require('./routes/paymentRoutes');  // <-- ADD THIS IMPORT
 
-// Mount routers
+// ============================================
+// MOUNT ROUTERS
+// ============================================
 app.use('/api/auth', authRoutes);
 app.use('/api/food', foodRoutes);
 app.use('/api/requests', requestRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/donor', donorRoutes);
-app.use('/api/payments', paymentRoutes); // <-- ADD THIS
+app.use('/api/payments', paymentRoutes);  // <-- ADD THIS
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

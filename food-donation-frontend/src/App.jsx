@@ -11,10 +11,11 @@ import Signup from './pages/auth/Signup';
 import DonorDashboard from './pages/donor/DonorDashboard';
 import AddFood from './pages/donor/AddFood';
 import MyListings from './pages/donor/MyListings';
-import SellerOrders from './pages/donor/SellerOrders';  // <-- ADD THIS IMPORT
+import DonorChat from './pages/donor/DonorChat';
+import SellerOrders from './pages/donor/SellerOrders';
 import ReceiverDashboard from './pages/receiver/ReceiverDashboard';
 import ReceiverClaims from './pages/receiver/ReceiverClaims';
-import BuyerOrders from './pages/receiver/BuyerOrders';  // <-- ADD THIS IMPORT
+import BuyerOrders from './pages/receiver/BuyerOrders';
 
 // Components
 import Navbar from './components/common/Navbar';
@@ -61,7 +62,7 @@ function AppContent() {
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
         
-        {/* Seller Routes (formerly Donor) */}
+        {/* Seller/Donor Routes */}
         <Route 
           path="/donor/dashboard" 
           element={
@@ -86,6 +87,14 @@ function AppContent() {
             </ProtectedRoute>
           } 
         />
+        <Route 
+          path="/donor/chat" 
+          element={
+            <ProtectedRoute allowedRoles={['seller', 'donor']}>
+              <DonorChat />
+            </ProtectedRoute>
+          } 
+        />
         {/* NEW: Seller Orders Route */}
         <Route 
           path="/donor/orders" 
@@ -96,7 +105,7 @@ function AppContent() {
           } 
         />
         
-        {/* Buyer Routes (formerly Receiver) */}
+        {/* Buyer/Receiver Routes */}
         <Route 
           path="/receiver/dashboard" 
           element={
@@ -113,7 +122,6 @@ function AppContent() {
             </ProtectedRoute>
           } 
         />
-        {/* NEW: Buyer Orders Route */}
         <Route 
           path="/receiver/orders" 
           element={

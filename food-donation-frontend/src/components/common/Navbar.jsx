@@ -11,8 +11,7 @@ import {
   FaTruck,
   FaStore,
   FaComments,
-  FaShoppingCart,
-  FaRupeeSign
+  FaShoppingCart
 } from 'react-icons/fa';
 
 const Navbar = () => {
@@ -103,7 +102,6 @@ const Navbar = () => {
                       <FaTruck size={14} />
                       <span className="hidden sm:inline">Browse</span>
                     </Link>
-                    {/* NEW: My Orders Link for Buyer */}
                     <Link
                       to="/receiver/orders"
                       className="text-gray-600 hover:text-gray-900 transition-colors flex items-center gap-1"

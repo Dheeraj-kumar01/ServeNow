@@ -86,7 +86,6 @@ const FoodCard = ({ food, userLocation, onClaim, onViewMap }) => {
     return { text: 'Available', color: 'bg-green-100 text-green-800', icon: null };
   };
 
-  // Fixed: handleBuyNow function with proper payment modal opening
   const handleBuyNow = async () => {
     if (isExpired) {
       toast.error('This product has expired');
@@ -101,27 +100,11 @@ const FoodCard = ({ food, userLocation, onClaim, onViewMap }) => {
       const result = await onClaim(food._id);
       console.log('Order creation result:', result);
       
-      // Try multiple ways to get order data
-      let orderData = null;
-      
-      if (result?.order) {
-        orderData = result.order;
-      } else if (result?.claim) {
-        orderData = result.claim;
-      } else if (result?.data?.order) {
-        orderData = result.data.order;
-      } else if (result?._id) {
-        orderData = result;
-      }
-      
-      if (orderData) {
-        console.log('Setting order data:', orderData);
-        setOrderCreated(orderData);
+      if (result && result.order) {
+        setOrderCreated(result.order);
         setShowPayment(true);
-        toast.success('Please complete payment');
       } else {
-        console.error('No order data in response:', result);
-        toast.error('Payment window could not be opened. Please contact support.');
+        toast.error('Failed to create order');
       }
     } catch (error) {
       console.error('Error creating order:', error);
@@ -134,9 +117,7 @@ const FoodCard = ({ food, userLocation, onClaim, onViewMap }) => {
   const handlePaymentSuccess = () => {
     setShowPayment(false);
     toast.success('Payment successful! Order confirmed.');
-    setTimeout(() => {
-      window.location.reload();
-    }, 1500);
+    setTimeout(() => window.location.reload(), 1500);
   };
 
   const handleViewMap = () => {
@@ -273,6 +254,7 @@ const FoodCard = ({ food, userLocation, onClaim, onViewMap }) => {
 
       {showChat && <ChatBox donorId={food.seller?._id || food.sellerId} foodId={food._id} donorName={food.seller?.name || 'Seller'} foodName={food.name} onClose={() => setShowChat(false)} />}
       
+      {/* Payment Modal */}
       {showPayment && orderCreated && (
         <PaymentButton
           order={orderCreated}

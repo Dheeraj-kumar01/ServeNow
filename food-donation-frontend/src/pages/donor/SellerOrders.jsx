@@ -41,7 +41,6 @@ const SellerOrders = () => {
       <div className="max-w-7xl mx-auto px-4">
         <h1 className="text-3xl font-bold text-gray-900 mb-8">My Orders</h1>
         
-        {/* Stats Cards */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
           <div className="bg-white rounded-lg shadow p-4 text-center"><p className="text-2xl font-bold text-green-600">{stats.totalOrders || 0}</p><p className="text-sm text-gray-500">Total Orders</p></div>
           <div className="bg-white rounded-lg shadow p-4 text-center"><p className="text-2xl font-bold text-blue-600">₹{stats.totalRevenue || 0}</p><p className="text-sm text-gray-500">Total Earnings</p></div>
@@ -50,7 +49,6 @@ const SellerOrders = () => {
           <div className="bg-white rounded-lg shadow p-4 text-center"><p className="text-2xl font-bold text-green-600">{stats.completedOrders || 0}</p><p className="text-sm text-gray-500">Completed</p></div>
         </div>
 
-        {/* Orders List */}
         {orders.length === 0 ? (
           <div className="bg-white rounded-lg shadow p-12 text-center"><p className="text-gray-500">No orders yet</p></div>
         ) : (
@@ -61,13 +59,8 @@ const SellerOrders = () => {
                 <div key={order._id} className="bg-white rounded-lg shadow-md overflow-hidden">
                   <div className="p-6">
                     <div className="flex justify-between items-start flex-wrap gap-4">
-                      <div>
-                        <h3 className="text-lg font-semibold text-gray-900">{order.food?.name}</h3>
-                        <p className="text-sm text-gray-500">Order ID: {order._id.slice(-8)}</p>
-                      </div>
-                      <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm ${statusBadge.color}`}>
-                        {statusBadge.icon}{statusBadge.text}
-                      </span>
+                      <div><h3 className="text-lg font-semibold text-gray-900">{order.food?.name}</h3><p className="text-sm text-gray-500">Order ID: {order._id.slice(-8)}</p></div>
+                      <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm ${statusBadge.color}`}>{statusBadge.icon}{statusBadge.text}</span>
                     </div>
                     
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">

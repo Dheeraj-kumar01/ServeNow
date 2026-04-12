@@ -4,7 +4,6 @@ import api from './api';
 // PRODUCT CRUD OPERATIONS
 // ============================================
 
-// Add new product (Seller)
 export const addFood = async (formData) => {
   const response = await api.post('/food', formData, {
     headers: { 'Content-Type': 'multipart/form-data' }
@@ -12,7 +11,6 @@ export const addFood = async (formData) => {
   return response.data;
 };
 
-// Get seller's products
 export const getDonorFoodListings = async () => {
   try {
     const response = await api.get('/food/mine');
@@ -29,13 +27,11 @@ export const getDonorFoodListings = async () => {
   }
 };
 
-// Get single product by ID
 export const getFoodById = async (foodId) => {
   const response = await api.get(`/food/${foodId}`);
   return response.data;
 };
 
-// Update product
 export const updateFood = async (foodId, formData) => {
   const response = await api.put(`/food/${foodId}`, formData, {
     headers: { 'Content-Type': 'multipart/form-data' }
@@ -43,7 +39,6 @@ export const updateFood = async (foodId, formData) => {
   return response.data;
 };
 
-// Delete product
 export const deleteFood = async (foodId) => {
   const response = await api.delete(`/food/${foodId}`);
   return response.data;
@@ -53,7 +48,6 @@ export const deleteFood = async (foodId) => {
 // NEARBY PRODUCT SEARCH
 // ============================================
 
-// Get nearby products (Buyer)
 export const getNearbyFood = async (lat, lng, radius = 10) => {
   const response = await api.get('/food/nearby', {
     params: { lat, lng, radius }
@@ -61,7 +55,6 @@ export const getNearbyFood = async (lat, lng, radius = 10) => {
   return response.data;
 };
 
-// Search products with filters
 export const searchFood = async (searchParams) => {
   const response = await api.get('/food/search', { params: searchParams });
   return response.data;
@@ -71,84 +64,59 @@ export const searchFood = async (searchParams) => {
 // ORDER OPERATIONS
 // ============================================
 
-// Create order (Buyer places order)
 export const claimFood = async (foodId) => {
   const response = await api.post(`/food/${foodId}/claim`);
   return response.data;
 };
 
-// Get buyer's orders
 export const getMyClaims = async () => {
   const response = await api.get('/claims/mine');
   return response.data;
 };
 
-// Accept order (Seller)
 export const acceptClaimRequest = async (claimId) => {
   const response = await api.put(`/requests/${claimId}/accept`);
   return response.data;
 };
 
-// Reject order (Seller)
 export const rejectClaimRequest = async (claimId) => {
   const response = await api.put(`/requests/${claimId}/reject`);
   return response.data;
 };
 
-// Generate OTP for delivery (Seller)
 export const generateClaimOTP = async (claimId) => {
   const response = await api.post(`/requests/${claimId}/generate-otp`);
   return response.data;
 };
 
-// Verify OTP and complete delivery (Buyer)
 export const verifyClaimOTP = async (claimId, otp) => {
   const response = await api.post(`/requests/${claimId}/verify`, { otp });
   return response.data;
 };
 
-// Get seller orders with stats
-export const getSellerOrders = async () => {
-  try {
-    const response = await api.get('/requests/seller/orders');
-    return response.data;
-  } catch (error) {
-    console.error('Error fetching seller orders:', error);
-    return { orders: [], stats: {} };
-  }
-};
-
 // ============================================
-// PAYMENT OPERATIONS
-// ============================================
-
-// Create Razorpay order
-export const createRazorpayOrder = async (requestId) => {
-  const response = await api.post('/payments/create-order', { requestId });
-  return response.data;
-};
-
-// Verify payment - ADD THIS FUNCTION
-export const verifyPayment = async (paymentData) => {
-  const response = await api.post('/payments/verify', paymentData);
-  return response.data;
-};
-
-// Get payment status
-export const getPaymentStatus = async (requestId) => {
-  const response = await api.get(`/payments/status/${requestId}`);
-  return response.data;
-};
-
-// ============================================
-// SELLER STATS
+// SELLER STATS - FIXED WORKING VERSION
 // ============================================
 
 // Get seller dashboard stats
 export const getSellerStats = async () => {
   try {
     const response = await api.get('/donor/stats');
-    return response.data;
+    console.log('Seller stats response:', response.data);
+    
+    // Return data with proper mapping
+    return {
+      totalProducts: response.data.totalDonations || 0,
+      totalOrders: response.data.totalOrders || 0,
+      totalRevenue: response.data.totalEarnings || 0,
+      totalCommission: response.data.totalCommission || 0,
+      pendingOrders: response.data.pendingOrders || 0,
+      completedOrders: response.data.completedDonations || 0,
+      activeListings: response.data.activeListings || 0,
+      totalBeneficiaries: response.data.totalBeneficiaries || 0,
+      acceptedOrders: response.data.acceptedOrders || 0,
+      rejectedOrders: response.data.rejectedOrders || 0
+    };
   } catch (error) {
     console.error('Error fetching seller stats:', error);
     return {
@@ -158,10 +126,47 @@ export const getSellerStats = async () => {
       totalCommission: 0,
       pendingOrders: 0,
       completedOrders: 0,
-      totalDonations: 0,
       activeListings: 0,
-      completedDonations: 0,
-      totalBeneficiaries: 0
+      totalBeneficiaries: 0,
+      acceptedOrders: 0,
+      rejectedOrders: 0
+    };
+  }
+};
+
+// Get seller orders
+export const getSellerOrders = async () => {
+  try {
+    const response = await api.get('/donor/claims/recent');
+    console.log('Seller orders response:', response.data);
+    
+    const orders = Array.isArray(response.data) ? response.data : [];
+    
+    // Calculate stats from orders
+    const stats = {
+      totalOrders: orders.length,
+      totalRevenue: orders.reduce((sum, order) => sum + (order.amount || order.food?.price || 0), 0),
+      totalCommission: orders.reduce((sum, order) => sum + ((order.amount || order.food?.price || 0) * 0.2), 0),
+      pendingOrders: orders.filter(o => o.status === 'pending').length,
+      acceptedOrders: orders.filter(o => o.status === 'accepted').length,
+      completedOrders: orders.filter(o => o.status === 'completed').length,
+      rejectedOrders: orders.filter(o => o.status === 'rejected').length
+    };
+    
+    return { orders, stats };
+  } catch (error) {
+    console.error('Error fetching seller orders:', error);
+    return { 
+      orders: [], 
+      stats: {
+        totalOrders: 0,
+        totalRevenue: 0,
+        totalCommission: 0,
+        pendingOrders: 0,
+        acceptedOrders: 0,
+        completedOrders: 0,
+        rejectedOrders: 0
+      } 
     };
   }
 };
@@ -182,7 +187,6 @@ export const getDonorStats = async () => {
   }
 };
 
-// Get donor recent claims
 export const getDonorRecentClaims = async () => {
   try {
     const response = await api.get('/donor/claims/recent');
@@ -205,6 +209,25 @@ export const getDonorAllClaims = async () => {
 
 export const getDonorFoodItems = async () => {
   const response = await api.get('/food/mine');
+  return response.data;
+};
+
+// ============================================
+// PAYMENT OPERATIONS
+// ============================================
+
+export const createRazorpayOrder = async (requestId) => {
+  const response = await api.post('/payments/create-order', { requestId });
+  return response.data;
+};
+
+export const verifyPayment = async (paymentData) => {
+  const response = await api.post('/payments/verify', paymentData);
+  return response.data;
+};
+
+export const getPaymentStatus = async (requestId) => {
+  const response = await api.get(`/payments/status/${requestId}`);
   return response.data;
 };
 
@@ -256,13 +279,7 @@ export const getImpactMetrics = async () => {
     const response = await api.get('/impact/metrics');
     return response.data;
   } catch (error) {
-    console.error('Error fetching impact metrics:', error);
-    return {
-      foodSaved: 0,
-      co2Reduced: 0,
-      mealsProvided: 0,
-      waterSaved: 0
-    };
+    return { foodSaved: 0, co2Reduced: 0, mealsProvided: 0, waterSaved: 0 };
   }
 };
 
@@ -271,24 +288,15 @@ export const getUserImpact = async () => {
     const response = await api.get('/impact/user');
     return response.data;
   } catch (error) {
-    console.error('Error fetching user impact:', error);
-    return {
-      totalDonations: 0,
-      totalClaims: 0,
-      foodSaved: 0,
-      co2Reduced: 0
-    };
+    return { totalDonations: 0, totalClaims: 0, foodSaved: 0, co2Reduced: 0 };
   }
 };
 
 export const getLeaderboard = async (type = 'seller', limit = 10) => {
   try {
-    const response = await api.get('/impact/leaderboard', {
-      params: { type, limit }
-    });
+    const response = await api.get('/impact/leaderboard', { params: { type, limit } });
     return response.data;
   } catch (error) {
-    console.error('Error fetching leaderboard:', error);
     return [];
   }
 };
@@ -302,7 +310,6 @@ export const getNotifications = async () => {
     const response = await api.get('/notifications');
     return response.data;
   } catch (error) {
-    console.error('Error fetching notifications:', error);
     return [];
   }
 };
@@ -337,7 +344,6 @@ export const getUserRatings = async (userId) => {
 
 export const formatFoodData = (foodData) => {
   const formData = new FormData();
-  
   Object.keys(foodData).forEach(key => {
     if (key === 'location' && foodData[key]) {
       formData.append(key, JSON.stringify(foodData[key]));
@@ -347,7 +353,6 @@ export const formatFoodData = (foodData) => {
       formData.append(key, foodData[key]);
     }
   });
-  
   return formData;
 };
 
@@ -355,8 +360,7 @@ export const calculateDistance = (lat1, lon1, lat2, lon2) => {
   const R = 6371;
   const dLat = (lat2 - lat1) * Math.PI / 180;
   const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a = 
-    Math.sin(dLat/2) * Math.sin(dLat/2) +
+  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
     Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
     Math.sin(dLon/2) * Math.sin(dLon/2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
@@ -374,10 +378,6 @@ export const isExpired = (expiryDate, expiryTime) => {
   return expiryDateTime < new Date();
 };
 
-// ============================================
-// DEFAULT EXPORT
-// ============================================
-
 export default {
   addFood,
   getDonorFoodListings,
@@ -392,9 +392,6 @@ export default {
   rejectClaimRequest,
   generateClaimOTP,
   verifyClaimOTP,
-  createRazorpayOrder,
-  verifyPayment,
-  getPaymentStatus,
   getSellerStats,
   getSellerOrders,
   getDonorStats,
@@ -404,6 +401,9 @@ export default {
   getReceiverStats,
   getReceiverClaims,
   getReceiverActiveClaims,
+  createRazorpayOrder,
+  verifyPayment,
+  getPaymentStatus,
   getImpactMetrics,
   getUserImpact,
   getLeaderboard,

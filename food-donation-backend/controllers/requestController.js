@@ -1,7 +1,7 @@
 const Request = require('../models/Request');
 const FoodListing = require('../models/FoodListing');
 const User = require('../models/User');
-const { generateOTP, isOTPExpired } = require('../utils/generateOTP');
+const { generateOTP: generateOTPCode, isOTPExpired } = require('../utils/generateOTP');
 
 // @desc    Get all requests for seller's food
 // @route   GET /api/requests/donor/requests
@@ -57,13 +57,12 @@ const acceptRequest = async (req, res) => {
     console.log('Order status:', request.status);
     console.log('Payment status:', request.paymentStatus);
 
-    // Allow acceptance even if payment is pending for testing
     if (request.status !== 'pending') {
       return res.status(400).json({ message: 'Request already processed' });
     }
 
     // Generate OTP for delivery
-    const otp = generateOTP();
+    const otp = generateOTPCode();
     const otpExpiry = new Date();
     otpExpiry.setMinutes(otpExpiry.getMinutes() + 30);
 
@@ -130,6 +129,90 @@ const rejectRequest = async (req, res) => {
   }
 };
 
+// @desc    Generate OTP for pickup (Seller)
+// @route   POST /api/requests/:id/generate-otp
+// @access  Private (Seller only)
+const generateOTP = async (req, res) => {
+  try {
+    const request = await Request.findById(req.params.id);
+
+    if (!request) {
+      return res.status(404).json({ message: 'Request not found' });
+    }
+
+    if (request.donor.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: 'Not authorized' });
+    }
+
+    if (request.status !== 'accepted') {
+      return res.status(400).json({ message: 'Order must be accepted first' });
+    }
+
+    // Generate OTP
+    const otp = generateOTPCode();
+    const otpExpiry = new Date();
+    otpExpiry.setMinutes(otpExpiry.getMinutes() + 30);
+
+    request.otp = otp;
+    request.otpExpiry = otpExpiry;
+    await request.save();
+
+    console.log(`OTP generated for request ${request._id}: ${otp}`);
+
+    res.json({
+      success: true,
+      message: 'OTP generated successfully',
+      otp: otp,
+      expiry: otpExpiry
+    });
+  } catch (error) {
+    console.error('Generate OTP error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// @desc    Resend OTP (Seller)
+// @route   POST /api/requests/:id/resend-otp
+// @access  Private (Seller only)
+const resendOTP = async (req, res) => {
+  try {
+    const request = await Request.findById(req.params.id);
+
+    if (!request) {
+      return res.status(404).json({ message: 'Request not found' });
+    }
+
+    if (request.donor.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: 'Not authorized' });
+    }
+
+    if (request.status !== 'accepted') {
+      return res.status(400).json({ message: 'Order must be accepted first' });
+    }
+
+    // Generate new OTP
+    const otp = generateOTPCode();
+    const otpExpiry = new Date();
+    otpExpiry.setMinutes(otpExpiry.getMinutes() + 30);
+
+    request.otp = otp;
+    request.otpExpiry = otpExpiry;
+    await request.save();
+
+    console.log(`OTP resent for request ${request._id}: ${otp}`);
+
+    res.json({
+      success: true,
+      message: 'OTP resent successfully',
+      otp: otp,
+      expiry: otpExpiry
+    });
+  } catch (error) {
+    console.error('Resend OTP error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
 // @desc    Verify OTP and complete delivery (Buyer)
 // @route   POST /api/requests/:id/verify
 // @access  Private (Buyer only)
@@ -186,6 +269,40 @@ const verifyOTP = async (req, res) => {
   }
 };
 
+// @desc    Complete request (Buyer marks as delivered)
+// @route   PUT /api/requests/:id/complete
+// @access  Private (Buyer only)
+const completeRequest = async (req, res) => {
+  try {
+    const request = await Request.findById(req.params.id);
+
+    if (!request) {
+      return res.status(404).json({ message: 'Request not found' });
+    }
+
+    if (request.receiver.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: 'Not authorized' });
+    }
+
+    if (request.status !== 'accepted') {
+      return res.status(400).json({ message: 'Order not accepted yet' });
+    }
+
+    request.status = 'completed';
+    request.completedAt = new Date();
+    await request.save();
+
+    res.json({
+      success: true,
+      message: 'Order completed successfully',
+      request
+    });
+  } catch (error) {
+    console.error('Complete request error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
 // @desc    Get seller orders with stats
 // @route   GET /api/requests/seller/orders
 // @access  Private (Seller only)
@@ -218,6 +335,9 @@ module.exports = {
   getReceiverClaims,
   acceptRequest,
   rejectRequest,
+  generateOTP,
   verifyOTP,
+  resendOTP,
+  completeRequest,
   getSellerOrders
 };

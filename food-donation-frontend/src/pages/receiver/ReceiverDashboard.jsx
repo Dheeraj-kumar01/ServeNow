@@ -101,26 +101,18 @@ const ReceiverDashboard = () => {
     setFilteredItems(filtered);
   };
 
-  // Fixed: handleClaimFood returns order data
   const handleClaimFood = async (foodId) => {
     try {
-      console.log('1. Creating order for product:', foodId);
+      console.log('Creating order for product:', foodId);
       
       const response = await claimFood(foodId);
-      console.log('2. Full API Response:', response);
+      console.log('Claim response:', response);
       
       if (response && response.order) {
-        console.log('3. Order found:', response.order);
         toast.success(response.message || 'Order created! Please complete payment.');
         await fetchNearbyFood();
         return response;
-      } else if (response && response.claim) {
-        console.log('3. Claim found:', response.claim);
-        toast.success(response.message || 'Order created! Please complete payment.');
-        await fetchNearbyFood();
-        return { order: response.claim };
       } else {
-        console.error('No order data in response:', response);
         toast.error('Failed to create order');
         return null;
       }

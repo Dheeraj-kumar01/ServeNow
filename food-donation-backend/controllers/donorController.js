@@ -2,9 +2,9 @@ const FoodListing = require('../models/FoodListing');
 const Request = require('../models/Request');
 const User = require('../models/User');
 
-// @desc    Get donor statistics
+// @desc    Get donor/seller statistics
 // @route   GET /api/donor/stats
-// @access  Private (Donor/Seller only)
+// @access  Private (Seller only)
 const getDonorStats = async (req, res) => {
   try {
     const sellerId = req.user._id;
@@ -19,11 +19,18 @@ const getDonorStats = async (req, res) => {
       expiryDate: { $gte: new Date() }
     });
 
-    // Get completed orders (delivered)
-    const completedOrders = await Request.countDocuments({
-      donor: sellerId,
-      status: 'completed'
-    });
+    // Get all orders for this seller
+    const orders = await Request.find({ donor: sellerId });
+    
+    const totalOrders = orders.length;
+    const completedOrders = orders.filter(o => o.status === 'completed').length;
+    const pendingOrders = orders.filter(o => o.status === 'pending').length;
+    const acceptedOrders = orders.filter(o => o.status === 'accepted').length;
+    const rejectedOrders = orders.filter(o => o.status === 'rejected').length;
+    
+    // Calculate earnings
+    const totalEarnings = orders.reduce((sum, order) => sum + (order.sellerEarning || 0), 0);
+    const totalCommission = orders.reduce((sum, order) => sum + (order.commission || 0), 0);
 
     // Get total beneficiaries (unique buyers)
     const beneficiaries = await Request.distinct('receiver', {
@@ -37,11 +44,18 @@ const getDonorStats = async (req, res) => {
     const totalQuantity = products.reduce((sum, item) => sum + item.quantity, 0);
 
     res.json({
+      success: true,
       totalDonations: totalProducts,
       activeListings,
       completedDonations: completedOrders,
       totalBeneficiaries,
-      totalQuantity: totalQuantity.toFixed(1)
+      totalQuantity: totalQuantity.toFixed(1),
+      totalEarnings: totalEarnings.toFixed(2),
+      totalCommission: totalCommission.toFixed(2),
+      totalOrders,
+      pendingOrders,
+      acceptedOrders,
+      rejectedOrders
     });
   } catch (error) {
     console.error('Get donor stats error:', error);
@@ -51,7 +65,7 @@ const getDonorStats = async (req, res) => {
 
 // @desc    Get donor's recent claims/orders
 // @route   GET /api/donor/claims/recent
-// @access  Private (Donor/Seller only)
+// @access  Private (Seller only)
 const getDonorRecentClaims = async (req, res) => {
   try {
     const sellerId = req.user._id;
@@ -62,7 +76,16 @@ const getDonorRecentClaims = async (req, res) => {
       .sort({ createdAt: -1 })
       .limit(10);
 
-    res.json(recentClaims);
+    // Add amount to each claim if not present
+    const claimsWithAmount = recentClaims.map(claim => {
+      const claimObj = claim.toObject();
+      if (!claimObj.amount && claimObj.food) {
+        claimObj.amount = claimObj.food.price || 0;
+      }
+      return claimObj;
+    });
+    
+    res.json(claimsWithAmount);
   } catch (error) {
     console.error('Get donor recent claims error:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -71,7 +94,7 @@ const getDonorRecentClaims = async (req, res) => {
 
 // @desc    Get all claims for donor
 // @route   GET /api/donor/claims
-// @access  Private (Donor/Seller only)
+// @access  Private (Seller only)
 const getDonorAllClaims = async (req, res) => {
   try {
     const sellerId = req.user._id;

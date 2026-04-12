@@ -1,11 +1,17 @@
+const Razorpay = require('razorpay');
+const crypto = require('crypto');
 const Request = require('../models/Request');
 const FoodListing = require('../models/FoodListing');
 const User = require('../models/User');
-const razorpayInstance = require('../utils/razorpay');
-const crypto = require('crypto');
 const { generateOTP } = require('../utils/generateOTP');
 
-// @desc    Create Razorpay order
+// Initialize Razorpay instance
+const razorpayInstance = new Razorpay({
+  key_id: process.env.RAZORPAY_KEY_ID,
+  key_secret: process.env.RAZORPAY_KEY_SECRET
+});
+
+// @desc    Create Razorpay Order
 // @route   POST /api/payments/create-order
 // @access  Private (Buyer only)
 const createRazorpayOrder = async (req, res) => {
@@ -15,88 +21,88 @@ const createRazorpayOrder = async (req, res) => {
     const request = await Request.findById(requestId).populate('food');
     
     if (!request) {
-      return res.status(404).json({ message: 'Request not found' });
+      return res.status(404).json({ success: false, message: 'Request not found' });
     }
 
     if (request.paymentStatus === 'completed') {
-      return res.status(400).json({ message: 'Payment already completed' });
+      return res.status(400).json({ success: false, message: 'Payment already completed' });
     }
 
     if (request.receiver.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ message: 'Not authorized' });
+      return res.status(403).json({ success: false, message: 'Not authorized' });
     }
 
-    const razorpayOrder = await razorpayInstance.orders.create({
-      amount: request.amount * 100, // Amount in paise
+    const options = {
+      amount: request.amount * 100,
       currency: 'INR',
-      receipt: `order_${requestId}_${Date.now()}`,
+      receipt: `receipt_${requestId}_${Date.now()}`,
       notes: {
         requestId: requestId.toString(),
         productId: request.food._id.toString(),
-        buyerId: request.receiver.toString()
+        buyerId: request.receiver.toString(),
+        sellerId: request.donor.toString()
       }
-    });
+    };
 
-    request.razorpayOrderId = razorpayOrder.id;
+    const order = await razorpayInstance.orders.create(options);
+
+    request.razorpayOrderId = order.id;
     await request.save();
 
-    res.json({
+    res.status(200).json({
       success: true,
-      razorpayOrderId: razorpayOrder.id,
+      orderId: order.id,
       amount: request.amount,
-      razorpayKey: process.env.RAZORPAY_KEY_ID
+      currency: 'INR',
+      key: process.env.RAZORPAY_KEY_ID
     });
 
   } catch (error) {
     console.error('Create Razorpay order error:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
+    res.status(500).json({ success: false, message: 'Failed to create order', error: error.message });
   }
 };
 
-// @desc    Verify payment
+// @desc    Verify Payment
 // @route   POST /api/payments/verify
 // @access  Private (Buyer only)
 const verifyPayment = async (req, res) => {
   try {
     const {
       requestId,
-      razorpayOrderId,
-      razorpayPaymentId,
-      razorpaySignature
+      razorpay_order_id,
+      razorpay_payment_id,
+      razorpay_signature
     } = req.body;
 
-    // Verify signature
-    const body = razorpayOrderId + '|' + razorpayPaymentId;
+    const body = razorpay_order_id + '|' + razorpay_payment_id;
     const expectedSignature = crypto
       .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
       .update(body.toString())
       .digest('hex');
 
-    const isAuthentic = expectedSignature === razorpaySignature;
+    const isAuthentic = expectedSignature === razorpay_signature;
 
     if (!isAuthentic) {
-      return res.status(400).json({ message: 'Payment verification failed' });
+      return res.status(400).json({ success: false, message: 'Payment verification failed' });
     }
 
-    // Update request
     const request = await Request.findById(requestId);
     if (!request) {
-      return res.status(404).json({ message: 'Request not found' });
+      return res.status(404).json({ success: false, message: 'Request not found' });
     }
 
     request.paymentStatus = 'completed';
-    request.razorpayPaymentId = razorpayPaymentId;
-    request.razorpaySignature = razorpaySignature;
-    request.status = 'accepted'; // Auto-accept after payment
+    request.razorpayPaymentId = razorpay_payment_id;
+    request.razorpaySignature = razorpay_signature;
+    request.status = 'accepted';
     await request.save();
 
-    // Update food listing status
     const food = await FoodListing.findById(request.food);
     food.orderStatus = 'accepted';
     food.paymentStatus = 'paid';
     await food.save();
 
-    // Generate OTP for delivery
     const otp = generateOTP();
     const otpExpiry = new Date();
     otpExpiry.setMinutes(otpExpiry.getMinutes() + 30);
@@ -104,7 +110,6 @@ const verifyPayment = async (req, res) => {
     request.otpExpiry = otpExpiry;
     await request.save();
 
-    // Update seller earnings
     await User.findByIdAndUpdate(request.donor, {
       $inc: {
         totalSales: 1,
@@ -113,20 +118,19 @@ const verifyPayment = async (req, res) => {
       }
     });
 
-    // Update buyer stats
     await User.findByIdAndUpdate(request.receiver, {
       $inc: { totalPurchases: 1 }
     });
 
-    res.json({
+    res.status(200).json({
       success: true,
       message: 'Payment verified successfully',
       otp: otp
     });
 
   } catch (error) {
-    console.error('Verify payment error:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
+    console.error('Payment verification error:', error);
+    res.status(500).json({ success: false, message: 'Verification failed', error: error.message });
   }
 };
 
@@ -139,17 +143,18 @@ const getPaymentStatus = async (req, res) => {
     const request = await Request.findById(requestId).select('paymentStatus amount razorpayOrderId razorpayPaymentId');
     
     if (!request) {
-      return res.status(404).json({ message: 'Request not found' });
+      return res.status(404).json({ success: false, message: 'Request not found' });
     }
 
-    res.json({
+    res.status(200).json({
+      success: true,
       paymentStatus: request.paymentStatus,
       amount: request.amount,
       razorpayOrderId: request.razorpayOrderId,
       razorpayPaymentId: request.razorpayPaymentId
     });
   } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
+    res.status(500).json({ success: false, message: 'Server error', error: error.message });
   }
 };
 
